@@ -8,8 +8,11 @@ First attempt at a library. Lots more changes and fixes to do. Contributions are
 
 ## Libray
 [WebServer  https://github.com/zhouhan0126/WebServer-esp32](https://github.com/zhouhan0126/WebServer-esp32)
+Note that the arduino-esp32 project already contains a different version of this library. This can cause a conflict. To make sure that this version of the WebServer library is used, remove the one in your Arduino installation folder under `hardware/espressif/esp32/libraries`. (For complete reference: the ![arduino-esp32 project](https://github.com/espressif/arduino-esp32) from master branch on 2019-02-16, git hash 89d6b89 contains an incompatible WebServer library.)
 
 [DNSServer   https://github.com/zhouhan0126/DNSServer---esp32](https://github.com/zhouhan0126/DNSServer---esp32)
+Note that the arduino-esp32 project already contains a different version of this library. This might cause a conflict though I haven't experienced any issues so far. (For complete reference: I am using the ![arduino-esp32 project](https://github.com/espressif/arduino-esp32) from master branch on 2019-02-16, git hash 89d6b89.)
+
 
 ## How It Looks
 ![ESP8266 WiFi Captive Portal Homepage](http://i.imgur.com/YPvW9eql.png) ![ESP8266 WiFi Captive Portal Configuration](http://i.imgur.com/oicWJ4gl.png)
