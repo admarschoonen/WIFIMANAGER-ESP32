@@ -243,13 +243,35 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
   return  WiFi.status() == WL_CONNECTED;
 }
 
-
 int WiFiManager::connectWifi(String ssid, String pass) {
   DEBUG_WM(F("Connecting as wifi client..."));
 
+  int connRes = doConnectWifi(ssid, pass, 0);
+  if (connRes != WL_CONNECTED) {
+    // Connection failed; could be due to this issue where every 2nd connect
+    // attempt fails: https://github.com/espressif/arduino-esp32/issues/234
+    // As temporary workaround: try to connect for second time 
+    WiFi.disconnect(true);
+    connRes = doConnectWifi(ssid, pass, 1);
+  }
+  DEBUG_WM ("Connection result: ");
+  DEBUG_WM ( connRes );
+
+  //not connected, WPS enabled, no pass - first attempt
+  if (_tryWPS && connRes != WL_CONNECTED && pass == "") {
+    startWPS();
+    //should be connected at the end of WPS
+    connRes = waitForConnectResult();
+  }
+  return connRes;
+}
+
+int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
   // check if we've got static_ip settings, if we do, use those.
   if (_sta_static_ip) {
-    DEBUG_WM(F("Custom STA IP/GW/Subnet"));
+    if (count == 0) {
+      DEBUG_WM(F("Custom STA IP/GW/Subnet"));
+    }
     WiFi.config(_sta_static_ip, _sta_static_gw, _sta_static_sn);
     DEBUG_WM(WiFi.localIP());
   }
@@ -263,7 +285,9 @@ int WiFiManager::connectWifi(String ssid, String pass) {
     WiFi.begin(ssid.c_str(), pass.c_str());
   } else {
     if (WiFi.SSID()) {
-      DEBUG_WM("Using last saved values, should be faster");
+      if (count == 0) {
+        DEBUG_WM("Using last saved values, should be faster");
+      }
 #if defined(ESP8266)
       //trying to fix connection in progress hanging
       ETS_UART_INTR_DISABLE();
@@ -275,19 +299,14 @@ int WiFiManager::connectWifi(String ssid, String pass) {
 
       WiFi.begin();
     } else {
-      DEBUG_WM("No saved credentials");
+      if (count == 0) {
+        DEBUG_WM("No saved credentials");
+      }
     }
   }
 
   int connRes = waitForConnectResult();
-  DEBUG_WM ("Connection result: ");
-  DEBUG_WM ( connRes );
-  //not connected, WPS enabled, no pass - first attempt
-  if (_tryWPS && connRes != WL_CONNECTED && pass == "") {
-    startWPS();
-    //should be connected at the end of WPS
-    connRes = waitForConnectResult();
-  }
+
   return connRes;
 }
 

@@ -167,6 +167,7 @@ class WiFiManager
 
     int           status = WL_IDLE_STATUS;
     int           connectWifi(String ssid, String pass);
+    int           doConnectWifi(String ssid, String pass, int count);
     uint8_t       waitForConnectResult();
 
     void          handleRoot();
