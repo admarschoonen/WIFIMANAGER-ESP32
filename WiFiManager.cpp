@@ -371,10 +371,11 @@ String WiFiManager::getConfigPortalSSID() {
 void WiFiManager::resetSettings() {
   DEBUG_WM(F("settings invalidated"));
   DEBUG_WM(F("THIS MAY CAUSE AP NOT TO START UP PROPERLY. YOU NEED TO COMMENT IT OUT AFTER ERASING THE DATA."));
-  // TODO On ESP32 this does not erase the SSID and password. See
-  // https://github.com/espressif/arduino-esp32/issues/400
-  // For now, use "make erase_flash".
   WiFi.disconnect(true);
+
+  // Ugly workaround for a bug that prevents proper erasing SSID and password. See
+  // https://github.com/espressif/arduino-esp32/issues/400#issuecomment-411076993
+  WiFi.begin("0", "0");
   //delay(200);
 }
 void WiFiManager::setTimeout(unsigned long seconds) {
