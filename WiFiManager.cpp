@@ -450,13 +450,14 @@ void WiFiManager::handleWifi(boolean scan) {
   page += FPSTR(HTTP_HEAD_END);
 
   if (scan) {
+    /* Scan does not seem to work without disconnecting first */
+    WiFi.disconnect(true);
     int n = WiFi.scanNetworks();
     DEBUG_WM(F("Scan done"));
     if (n == 0) {
       DEBUG_WM(F("No networks found"));
       page += F("No networks found. Refresh to scan again.");
     } else {
-
       //sort networks
       int indices[n];
       for (int i = 0; i < n; i++) {
@@ -508,10 +509,11 @@ void WiFiManager::handleWifi(boolean scan) {
           item.replace("{v}", WiFi.SSID(indices[i]));
           item.replace("{r}", rssiQ);
 #if defined(ESP8266)
-          if (WiFi.encryptionType(indices[i]) != ENC_TYPE_NONE) {
+          if (WiFi.encryptionType(indices[i]) != ENC_TYPE_NONE)
 #else
-          if (WiFi.encryptionType(indices[i]) != WIFI_AUTH_OPEN) {
+          if (WiFi.encryptionType(indices[i]) != WIFI_AUTH_OPEN)
 #endif
+          {
             item.replace("{i}", "l");
           } else {
             item.replace("{i}", "");
