@@ -121,14 +121,16 @@ void WiFiManager::setupConfigPortal() {
   dnsServer->start(DNS_PORT, "*", WiFi.softAPIP());
 
   /* Setup web pages: root, wifi config pages, SO captive portal detectors and not found. */
-  server->on("/", std::bind(&WiFiManager::handleRoot, this));
+  //server->on("/", std::bind(&WiFiManager::handleRoot, this));
+  server->on("/", std::bind(&WiFiManager::handleWifi, this, true));
   server->on("/wifi", std::bind(&WiFiManager::handleWifi, this, true));
   server->on("/0wifi", std::bind(&WiFiManager::handleWifi, this, false));
   server->on("/wifisave", std::bind(&WiFiManager::handleWifiSave, this));
   server->on("/i", std::bind(&WiFiManager::handleInfo, this));
   server->on("/r", std::bind(&WiFiManager::handleReset, this));
   //server->on("/generate_204", std::bind(&WiFiManager::handle204, this));  //Android/Chrome OS captive portal check.
-  server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+  //server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+  server->on("/fwlink", std::bind(&WiFiManager::handleWifi, this, true));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
   server->onNotFound (std::bind(&WiFiManager::handleNotFound, this));
   server->begin(); // Web server start
   DEBUG_WM(F("HTTP server started"));
@@ -441,6 +443,9 @@ void WiFiManager::handleRoot() {
 
 /** Wifi config page handler */
 void WiFiManager::handleWifi(boolean scan) {
+  if (captivePortal()) { // If caprive portal redirect instead of displaying the page.
+    return;
+  }
 
   String page = FPSTR(HTTP_HEAD);
   page.replace("{v}", "Config ESP");
@@ -448,6 +453,11 @@ void WiFiManager::handleWifi(boolean scan) {
   page += FPSTR(HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEAD_END);
+
+  page += "<h1>";
+  page += _apName;
+  page += "</h1>";
+  page += F("<h3>WiFiManager</h3>");
 
   if (scan) {
     /* Scan does not seem to work without disconnecting first */
@@ -496,6 +506,11 @@ void WiFiManager::handleWifi(boolean scan) {
       }
 
       //display networks in page
+      if (n > 0) {
+	page += F("Found the following networks:");
+      } else {
+        page += F("No networks found. Refresh to scan again.");
+      }
       for (int i = 0; i < n; i++) {
         if (indices[i] == -1) continue; // skip dups
         DEBUG_WM(WiFi.SSID(indices[i]));
@@ -792,8 +807,6 @@ void WiFiManager::setCustomHeadElement(const char* element) {
 void WiFiManager::setRemoveDuplicateAPs(boolean removeDuplicates) {
   _removeDuplicateAPs = removeDuplicates;
 }
-
-
 
 template <typename Generic>
 void WiFiManager::DEBUG_WM(Generic text) {
