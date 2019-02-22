@@ -4,9 +4,9 @@ ESP32&&ESP8266 WiFi Connection manager with fallback web configuration portal
 
 The configuration portal is of the captive variety, so on various devices it will present the configuration dialogue as soon as you connect to the created access point.
 
-First attempt at a library. Lots more changes and fixes to do. Contributions are welcome.
+Fork from [Zhouhan0126 WIFIMANAGER-ESP32](https://github.com/zhouhan0126/WIFIMANAGER-ESP32) with various patches.
 
-## Libray
+## Library
 This library uses the WebServer and DNSServer libraries. These are included in the [arduino-esp32 project](https://github.com/espressif/arduino-esp32) from master branch on 2019-02-16, git hash 89d6b89.
 
 ## How It Looks
