@@ -5,9 +5,9 @@
   "repository":
   {
     "type": "git",
-    "url": "https://github.com/bbx10/WiFiManager.git"
+    "url": "https://github.com/admarschoonen/WIFIMANAGER-ESP32"
   },
   "frameworks": "arduino",
-  "platforms": "espressif8266",
-  "version": "0.99.9"
+  "platforms": "espressif8266", "esp32",
+  "version": "0.99.10"
 }
