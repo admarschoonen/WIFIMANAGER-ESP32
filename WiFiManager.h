@@ -123,6 +123,8 @@ class WiFiManager
     //if this is true, remove duplicated Access Points - defaut true
     void          setRemoveDuplicateAPs(boolean removeDuplicates);
 
+    void          setCustomSsid(String ssid);
+    void          appendChipIdToSsid(bool value);
   private:
     std::unique_ptr<DNSServer>        dnsServer;
 #ifdef ESP8266
@@ -143,6 +145,8 @@ class WiFiManager
     const char*   _apPassword             = NULL;
     String        _ssid                   = "";
     String        _pass                   = "";
+    String        _customSsid             = "ESP";
+    bool          _appendChipIdToSsid     = true;
     unsigned long _configPortalTimeout    = 0;
     unsigned long _connectTimeout         = 0;
     unsigned long _configPortalStart      = 0;

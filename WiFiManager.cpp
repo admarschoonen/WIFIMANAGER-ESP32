@@ -141,7 +141,13 @@ void WiFiManager::setupConfigPortal() {
 }
 
 boolean WiFiManager::autoConnect() {
-  String ssid = "ESP" + String(ESP_getChipId());
+  String ssid;
+
+  if (_appendChipIdToSsid) {
+    ssid = (_customSsid + String(ESP_getChipId()));
+  } else {
+    ssid = _customSsid;
+  }
   return autoConnect(ssid.c_str(), NULL);
 }
 
@@ -179,7 +185,13 @@ boolean WiFiManager::configPortalHasTimeout(){
 }
 
 boolean WiFiManager::startConfigPortal() {
-  String ssid = "ESP" + String(ESP_getChipId());
+  String ssid;
+
+  if (_appendChipIdToSsid) {
+    ssid = (_customSsid + String(ESP_getChipId()));
+  } else {
+    ssid = _customSsid;
+  }
   return startConfigPortal(ssid.c_str(), NULL);
 }
 
@@ -816,6 +828,14 @@ void WiFiManager::setCustomHeadElement(const char* element) {
 //if this is true, remove duplicated Access Points - defaut true
 void WiFiManager::setRemoveDuplicateAPs(boolean removeDuplicates) {
   _removeDuplicateAPs = removeDuplicates;
+}
+
+void WiFiManager::setCustomSsid(String ssid) {
+  _customSsid = ssid;
+}
+
+void WiFiManager::appendChipIdToSsid(bool value) {
+  _appendChipIdToSsid = value;
 }
 
 template <typename Generic>
