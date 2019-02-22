@@ -464,8 +464,30 @@ void WiFiManager::handleRoot() {
 
 /** Wifi config page handler */
 void WiFiManager::handleWifi(boolean scan) {
+  int n;
+  bool scanBusy = false;
+
   if (captivePortal()) { // If caprive portal redirect instead of displaying the page.
     return;
+  }
+
+  n = WiFi.scanComplete();
+  if (n < 0) {
+    scanBusy = true;
+  } else {
+    n_wifi_networks = n;
+  }
+
+  if (scan) {
+    if (scanBusy == false) {
+      /* Scan does not seem to work without disconnecting first */
+      WiFi.disconnect(true);
+      n_wifi_networks = 0;
+      WiFi.scanNetworks(true);
+      scanBusy = true;
+    } else {
+      DEBUG_WM(F("Scan busy; not starting another one"));
+    }
   }
 
   String page = FPSTR(WM_HTTP_HEAD);
@@ -473,6 +495,10 @@ void WiFiManager::handleWifi(boolean scan) {
   page += FPSTR(WM_HTTP_SCRIPT);
   page += FPSTR(WM_HTTP_STYLE);
   page += _customHeadElement;
+  if (scanBusy) {
+    // Scan busy; enable auto refresh
+    page += FPSTR(WM_HTTP_HEAD_REFRESH);
+  }
   page += FPSTR(WM_HTTP_HEAD_END);
 
   page += "<h1>";
@@ -480,154 +506,154 @@ void WiFiManager::handleWifi(boolean scan) {
   page += "</h1>";
   page += F("<h3>WiFiManager</h3>");
 
-  if (scan) {
-    /* Scan does not seem to work without disconnecting first */
-    WiFi.disconnect(true);
-    n_wifi_networks = WiFi.scanNetworks();
-    DEBUG_WM(F("Scan done"));
-  }
-
-  if (n_wifi_networks == 0) {
-    DEBUG_WM(F("No networks found"));
-    page += F("No networks found. Refresh to scan again.");
+  if (scanBusy) {
+    page += F("Scan busy. Please wait.");
+    page += FPSTR(WM_HTTP_BODY_REFRESH);
   } else {
-    //sort networks
-    int indices[n_wifi_networks ];
-    for (int i = 0; i < n_wifi_networks; i++) {
-      indices[i] = i;
-    }
-
-    // RSSI SORT
-
-    // old sort
-    for (int i = 0; i < n_wifi_networks ; i++) {
-      for (int j = i + 1; j < n_wifi_networks ; j++) {
-        if (WiFi.RSSI(indices[j]) > WiFi.RSSI(indices[i])) {
-          std::swap(indices[i], indices[j]);
-        }
+    DEBUG_WM(F("Scan done"));
+    
+    if (n_wifi_networks == 0) {
+      DEBUG_WM(F("No networks found"));
+      page += F("No networks found. Refresh to scan again.");
+    } else {
+      //sort networks
+      int indices[n_wifi_networks ];
+      for (int i = 0; i < n_wifi_networks; i++) {
+        indices[i] = i;
       }
-    }
-
-    /*std::sort(indices, indices + n_wifi_networks , [](const int & a, const int & b) -> bool
-      {
-      return WiFi.RSSI(a) > WiFi.RSSI(b);
-      });*/
-
-    // remove duplicates ( must be RSSI sorted )
-    if (_removeDuplicateAPs) {
-      String cssid;
+  
+      // RSSI SORT
+  
+      // old sort
       for (int i = 0; i < n_wifi_networks ; i++) {
-        if (indices[i] == -1) continue;
-        cssid = WiFi.SSID(indices[i]);
         for (int j = i + 1; j < n_wifi_networks ; j++) {
-          if (cssid == WiFi.SSID(indices[j])) {
-            DEBUG_WM("DUP AP: " + WiFi.SSID(indices[j]));
-            indices[j] = -1; // set dup aps to index -1
+          if (WiFi.RSSI(indices[j]) > WiFi.RSSI(indices[i])) {
+            std::swap(indices[i], indices[j]);
           }
         }
       }
-    }
-
-    //display networks in page
-    if (n_wifi_networks  > 0) {
-	page += F("Found the following networks:");
-    } else {
-      page += F("No networks found. Refresh to scan again.");
-    }
-    for (int i = 0; i < n_wifi_networks ; i++) {
-      if (indices[i] == -1) continue; // skip dups
-      DEBUG_WM(WiFi.SSID(indices[i]));
-      DEBUG_WM(WiFi.RSSI(indices[i]));
-      int quality = getRSSIasQuality(WiFi.RSSI(indices[i]));
-
-      if (_minimumQuality == -1 || _minimumQuality < quality) {
-        String item = FPSTR(WM_HTTP_ITEM);
-        String rssiQ;
-        rssiQ += quality;
-        item.replace("{v}", WiFi.SSID(indices[i]));
-        item.replace("{r}", rssiQ);
-#if defined(ESP8266)
-        if (WiFi.encryptionType(indices[i]) != ENC_TYPE_NONE)
-#else
-        if (WiFi.encryptionType(indices[i]) != WIFI_AUTH_OPEN)
-#endif
+  
+      /*std::sort(indices, indices + n_wifi_networks , [](const int & a, const int & b) -> bool
         {
-          item.replace("{i}", "l");
-        } else {
-          item.replace("{i}", "");
+        return WiFi.RSSI(a) > WiFi.RSSI(b);
+        });*/
+  
+      // remove duplicates ( must be RSSI sorted )
+      if (_removeDuplicateAPs) {
+        String cssid;
+        for (int i = 0; i < n_wifi_networks ; i++) {
+          if (indices[i] == -1) continue;
+          cssid = WiFi.SSID(indices[i]);
+          for (int j = i + 1; j < n_wifi_networks ; j++) {
+            if (cssid == WiFi.SSID(indices[j])) {
+              DEBUG_WM("DUP AP: " + WiFi.SSID(indices[j]));
+              indices[j] = -1; // set dup aps to index -1
+            }
+          }
         }
-        //DEBUG_WM(item);
-        page += item;
-        delay(0);
-      } else {
-        DEBUG_WM(F("Skipping due to quality"));
       }
-
+  
+      //display networks in page
+      if (n_wifi_networks  > 0) {
+  	    page += F("Found the following networks:");
+      } else {
+        page += F("No networks found. Refresh to scan again.");
+      }
+      for (int i = 0; i < n_wifi_networks ; i++) {
+        if (indices[i] == -1) continue; // skip dups
+        DEBUG_WM(WiFi.SSID(indices[i]));
+        DEBUG_WM(WiFi.RSSI(indices[i]));
+        int quality = getRSSIasQuality(WiFi.RSSI(indices[i]));
+  
+        if (_minimumQuality == -1 || _minimumQuality < quality) {
+          String item = FPSTR(WM_HTTP_ITEM);
+          String rssiQ;
+          rssiQ += quality;
+          item.replace("{v}", WiFi.SSID(indices[i]));
+          item.replace("{r}", rssiQ);
+  #if defined(ESP8266)
+          if (WiFi.encryptionType(indices[i]) != ENC_TYPE_NONE)
+  #else
+          if (WiFi.encryptionType(indices[i]) != WIFI_AUTH_OPEN)
+  #endif
+          {
+            item.replace("{i}", "l");
+          } else {
+            item.replace("{i}", "");
+          }
+          //DEBUG_WM(item);
+          page += item;
+          delay(0);
+        } else {
+          DEBUG_WM(F("Skipping due to quality"));
+        }
+  
+      }
+      page += "<br/>";
     }
-    page += "<br/>";
-  }
 
-  page += FPSTR(WM_HTTP_FORM_START);
-  char parLength[2];
-  // add the extra parameters to the form
-  for (int i = 0; i < _paramsCount; i++) {
-    if (_params[i] == NULL) {
-      break;
+    page += FPSTR(WM_HTTP_FORM_START);
+    char parLength[2];
+    // add the extra parameters to the form
+    for (int i = 0; i < _paramsCount; i++) {
+      if (_params[i] == NULL) {
+        break;
+      }
+  
+      String pitem = FPSTR(WM_HTTP_FORM_PARAM);
+      if (_params[i]->getID() != NULL) {
+        pitem.replace("{i}", _params[i]->getID());
+        pitem.replace("{n}", _params[i]->getID());
+        pitem.replace("{p}", _params[i]->getPlaceholder());
+        snprintf(parLength, 2, "%d", _params[i]->getValueLength());
+        pitem.replace("{l}", parLength);
+        pitem.replace("{v}", _params[i]->getValue());
+        pitem.replace("{c}", _params[i]->getCustomHTML());
+      } else {
+        pitem = _params[i]->getCustomHTML();
+      }
+  
+      page += pitem;
     }
-
-    String pitem = FPSTR(WM_HTTP_FORM_PARAM);
-    if (_params[i]->getID() != NULL) {
-      pitem.replace("{i}", _params[i]->getID());
-      pitem.replace("{n}", _params[i]->getID());
-      pitem.replace("{p}", _params[i]->getPlaceholder());
-      snprintf(parLength, 2, "%d", _params[i]->getValueLength());
-      pitem.replace("{l}", parLength);
-      pitem.replace("{v}", _params[i]->getValue());
-      pitem.replace("{c}", _params[i]->getCustomHTML());
-    } else {
-      pitem = _params[i]->getCustomHTML();
+    if (_params[0] != NULL) {
+      page += "<br/>";
     }
-
-    page += pitem;
+  
+    if (_sta_static_ip) {
+  
+      String item = FPSTR(WM_HTTP_FORM_PARAM);
+      item.replace("{i}", "ip");
+      item.replace("{n}", "ip");
+      item.replace("{p}", "Static IP");
+      item.replace("{l}", "15");
+      item.replace("{v}", _sta_static_ip.toString());
+  
+      page += item;
+  
+      item = FPSTR(WM_HTTP_FORM_PARAM);
+      item.replace("{i}", "gw");
+      item.replace("{n}", "gw");
+      item.replace("{p}", "Static Gateway");
+      item.replace("{l}", "15");
+      item.replace("{v}", _sta_static_gw.toString());
+  
+      page += item;
+  
+      item = FPSTR(WM_HTTP_FORM_PARAM);
+      item.replace("{i}", "sn");
+      item.replace("{n}", "sn");
+      item.replace("{p}", "Subnet");
+      item.replace("{l}", "15");
+      item.replace("{v}", _sta_static_sn.toString());
+  
+      page += item;
+  
+      page += "<br/>";
+    }
+  
+    page += FPSTR(WM_HTTP_FORM_END);
+    page += FPSTR(WM_HTTP_SCAN_LINK);
   }
-  if (_params[0] != NULL) {
-    page += "<br/>";
-  }
-
-  if (_sta_static_ip) {
-
-    String item = FPSTR(WM_HTTP_FORM_PARAM);
-    item.replace("{i}", "ip");
-    item.replace("{n}", "ip");
-    item.replace("{p}", "Static IP");
-    item.replace("{l}", "15");
-    item.replace("{v}", _sta_static_ip.toString());
-
-    page += item;
-
-    item = FPSTR(WM_HTTP_FORM_PARAM);
-    item.replace("{i}", "gw");
-    item.replace("{n}", "gw");
-    item.replace("{p}", "Static Gateway");
-    item.replace("{l}", "15");
-    item.replace("{v}", _sta_static_gw.toString());
-
-    page += item;
-
-    item = FPSTR(WM_HTTP_FORM_PARAM);
-    item.replace("{i}", "sn");
-    item.replace("{n}", "sn");
-    item.replace("{p}", "Subnet");
-    item.replace("{l}", "15");
-    item.replace("{v}", _sta_static_sn.toString());
-
-    page += item;
-
-    page += "<br/>";
-  }
-
-  page += FPSTR(WM_HTTP_FORM_END);
-  page += FPSTR(WM_HTTP_SCAN_LINK);
 
   page += FPSTR(WM_HTTP_END);
 
