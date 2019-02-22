@@ -12,6 +12,8 @@
 
 #include "WiFiManager.h"
 
+int n_wifi_networks = 0;
+
 WiFiManagerParameter::WiFiManagerParameter(const char *custom) {
   _id = NULL;
   _placeholder = NULL;
@@ -79,6 +81,8 @@ void WiFiManager::addParameter(WiFiManagerParameter *p) {
 }
 
 void WiFiManager::setupConfigPortal() {
+  DEBUG_WM(F("Configuring access point... "));
+
   dnsServer.reset(new DNSServer());
 #ifdef ESP8266
   server.reset(new ESP8266WebServer(80));
@@ -89,7 +93,6 @@ void WiFiManager::setupConfigPortal() {
   DEBUG_WM(F(""));
   _configPortalStart = millis();
 
-  DEBUG_WM(F("Configuring access point... "));
   DEBUG_WM(_apName);
   if (_apPassword != NULL) {
     if (strlen(_apPassword) < 8 || strlen(_apPassword) > 63) {
@@ -122,7 +125,7 @@ void WiFiManager::setupConfigPortal() {
 
   /* Setup web pages: root, wifi config pages, SO captive portal detectors and not found. */
   //server->on("/", std::bind(&WiFiManager::handleRoot, this));
-  server->on("/", std::bind(&WiFiManager::handleWifi, this, true));
+  server->on("/", std::bind(&WiFiManager::handleWifi, this, false));
   server->on("/wifi", std::bind(&WiFiManager::handleWifi, this, true));
   server->on("/0wifi", std::bind(&WiFiManager::handleWifi, this, false));
   server->on("/wifisave", std::bind(&WiFiManager::handleWifiSave, this));
@@ -130,7 +133,7 @@ void WiFiManager::setupConfigPortal() {
   server->on("/r", std::bind(&WiFiManager::handleReset, this));
   //server->on("/generate_204", std::bind(&WiFiManager::handle204, this));  //Android/Chrome OS captive portal check.
   //server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
-  server->on("/fwlink", std::bind(&WiFiManager::handleWifi, this, true));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+  server->on("/fwlink", std::bind(&WiFiManager::handleWifi, this, false));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
   server->onNotFound (std::bind(&WiFiManager::handleNotFound, this));
   server->begin(); // Web server start
   DEBUG_WM(F("HTTP server started"));
@@ -181,6 +184,12 @@ boolean WiFiManager::startConfigPortal() {
 }
 
 boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPassword) {
+  // First scan networks (so user doesn't have to wait)
+  // Scan does not seem to work without disconnecting first
+  WiFi.disconnect(true);
+  n_wifi_networks = WiFi.scanNetworks();
+  DEBUG_WM(F("Scan done"));
+
   //setup AP
   WiFi.mode(WIFI_AP_STA);
   DEBUG_WM("SET AP STA");
@@ -462,87 +471,88 @@ void WiFiManager::handleWifi(boolean scan) {
   if (scan) {
     /* Scan does not seem to work without disconnecting first */
     WiFi.disconnect(true);
-    int n = WiFi.scanNetworks();
+    n_wifi_networks = WiFi.scanNetworks();
     DEBUG_WM(F("Scan done"));
-    if (n == 0) {
-      DEBUG_WM(F("No networks found"));
-      page += F("No networks found. Refresh to scan again.");
-    } else {
-      //sort networks
-      int indices[n];
-      for (int i = 0; i < n; i++) {
-        indices[i] = i;
-      }
+  }
 
-      // RSSI SORT
-
-      // old sort
-      for (int i = 0; i < n; i++) {
-        for (int j = i + 1; j < n; j++) {
-          if (WiFi.RSSI(indices[j]) > WiFi.RSSI(indices[i])) {
-            std::swap(indices[i], indices[j]);
-          }
-        }
-      }
-
-      /*std::sort(indices, indices + n, [](const int & a, const int & b) -> bool
-        {
-        return WiFi.RSSI(a) > WiFi.RSSI(b);
-        });*/
-
-      // remove duplicates ( must be RSSI sorted )
-      if (_removeDuplicateAPs) {
-        String cssid;
-        for (int i = 0; i < n; i++) {
-          if (indices[i] == -1) continue;
-          cssid = WiFi.SSID(indices[i]);
-          for (int j = i + 1; j < n; j++) {
-            if (cssid == WiFi.SSID(indices[j])) {
-              DEBUG_WM("DUP AP: " + WiFi.SSID(indices[j]));
-              indices[j] = -1; // set dup aps to index -1
-            }
-          }
-        }
-      }
-
-      //display networks in page
-      if (n > 0) {
-	page += F("Found the following networks:");
-      } else {
-        page += F("No networks found. Refresh to scan again.");
-      }
-      for (int i = 0; i < n; i++) {
-        if (indices[i] == -1) continue; // skip dups
-        DEBUG_WM(WiFi.SSID(indices[i]));
-        DEBUG_WM(WiFi.RSSI(indices[i]));
-        int quality = getRSSIasQuality(WiFi.RSSI(indices[i]));
-
-        if (_minimumQuality == -1 || _minimumQuality < quality) {
-          String item = FPSTR(HTTP_ITEM);
-          String rssiQ;
-          rssiQ += quality;
-          item.replace("{v}", WiFi.SSID(indices[i]));
-          item.replace("{r}", rssiQ);
-#if defined(ESP8266)
-          if (WiFi.encryptionType(indices[i]) != ENC_TYPE_NONE)
-#else
-          if (WiFi.encryptionType(indices[i]) != WIFI_AUTH_OPEN)
-#endif
-          {
-            item.replace("{i}", "l");
-          } else {
-            item.replace("{i}", "");
-          }
-          //DEBUG_WM(item);
-          page += item;
-          delay(0);
-        } else {
-          DEBUG_WM(F("Skipping due to quality"));
-        }
-
-      }
-      page += "<br/>";
+  if (n_wifi_networks == 0) {
+    DEBUG_WM(F("No networks found"));
+    page += F("No networks found. Refresh to scan again.");
+  } else {
+    //sort networks
+    int indices[n_wifi_networks ];
+    for (int i = 0; i < n_wifi_networks; i++) {
+      indices[i] = i;
     }
+
+    // RSSI SORT
+
+    // old sort
+    for (int i = 0; i < n_wifi_networks ; i++) {
+      for (int j = i + 1; j < n_wifi_networks ; j++) {
+        if (WiFi.RSSI(indices[j]) > WiFi.RSSI(indices[i])) {
+          std::swap(indices[i], indices[j]);
+        }
+      }
+    }
+
+    /*std::sort(indices, indices + n_wifi_networks , [](const int & a, const int & b) -> bool
+      {
+      return WiFi.RSSI(a) > WiFi.RSSI(b);
+      });*/
+
+    // remove duplicates ( must be RSSI sorted )
+    if (_removeDuplicateAPs) {
+      String cssid;
+      for (int i = 0; i < n_wifi_networks ; i++) {
+        if (indices[i] == -1) continue;
+        cssid = WiFi.SSID(indices[i]);
+        for (int j = i + 1; j < n_wifi_networks ; j++) {
+          if (cssid == WiFi.SSID(indices[j])) {
+            DEBUG_WM("DUP AP: " + WiFi.SSID(indices[j]));
+            indices[j] = -1; // set dup aps to index -1
+          }
+        }
+      }
+    }
+
+    //display networks in page
+    if (n_wifi_networks  > 0) {
+	page += F("Found the following networks:");
+    } else {
+      page += F("No networks found. Refresh to scan again.");
+    }
+    for (int i = 0; i < n_wifi_networks ; i++) {
+      if (indices[i] == -1) continue; // skip dups
+      DEBUG_WM(WiFi.SSID(indices[i]));
+      DEBUG_WM(WiFi.RSSI(indices[i]));
+      int quality = getRSSIasQuality(WiFi.RSSI(indices[i]));
+
+      if (_minimumQuality == -1 || _minimumQuality < quality) {
+        String item = FPSTR(HTTP_ITEM);
+        String rssiQ;
+        rssiQ += quality;
+        item.replace("{v}", WiFi.SSID(indices[i]));
+        item.replace("{r}", rssiQ);
+#if defined(ESP8266)
+        if (WiFi.encryptionType(indices[i]) != ENC_TYPE_NONE)
+#else
+        if (WiFi.encryptionType(indices[i]) != WIFI_AUTH_OPEN)
+#endif
+        {
+          item.replace("{i}", "l");
+        } else {
+          item.replace("{i}", "");
+        }
+        //DEBUG_WM(item);
+        page += item;
+        delay(0);
+      } else {
+        DEBUG_WM(F("Skipping due to quality"));
+      }
+
+    }
+    page += "<br/>";
   }
 
   page += FPSTR(HTTP_FORM_START);
