@@ -126,6 +126,7 @@ class WiFiManager
     void          setRemoveDuplicateAPs(boolean removeDuplicates);
 
     void          setCustomSsid(String ssid);
+    String        getCustomSsid();
     void          appendChipIdToSsid(bool value);
   private:
     std::unique_ptr<DNSServer>        dnsServer;

@@ -860,6 +860,18 @@ void WiFiManager::setCustomSsid(String ssid) {
   _customSsid = ssid;
 }
 
+String WiFiManager::getCustomSsid() {
+  String ssid;
+
+  if (_appendChipIdToSsid) {
+    ssid = (_customSsid + String(ESP_getChipId()));
+  } else {
+    ssid = _customSsid;
+  }
+
+  return ssid;
+}
+
 void WiFiManager::appendChipIdToSsid(bool value) {
   _appendChipIdToSsid = value;
 }
