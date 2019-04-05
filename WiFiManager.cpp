@@ -304,6 +304,10 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
     return WL_CONNECTED;
   }
   //check if we have ssid and pass and force those, if not, try with last saved values
+  String hostname = getCustomSsid();
+  DEBUG_WM("Setting hostname to");
+  DEBUG_WM(hostname.c_str());
+  WiFi.setHostname(hostname.c_str());
   if (ssid != "") {
     WiFi.begin(ssid.c_str(), pass.c_str());
   } else {
