@@ -143,10 +143,10 @@ void WiFiManager::setupConfigPortal() {
 boolean WiFiManager::autoConnect() {
   String ssid;
 
-  if (_appendChipIdToSsid) {
-    ssid = (_customSsid + String(ESP_getChipId()));
+  if (_appendChipIdToHostname) {
+    ssid = (_customHostname + String(ESP_getChipId()));
   } else {
-    ssid = _customSsid;
+    ssid = _customHostname;
   }
   return autoConnect(ssid.c_str(), NULL);
 }
@@ -187,10 +187,10 @@ boolean WiFiManager::configPortalHasTimeout(){
 boolean WiFiManager::startConfigPortal() {
   String ssid;
 
-  if (_appendChipIdToSsid) {
-    ssid = (_customSsid + String(ESP_getChipId()));
+  if (_appendChipIdToHostname) {
+    ssid = (_customHostname + String(ESP_getChipId()));
   } else {
-    ssid = _customSsid;
+    ssid = _customHostname;
   }
   return startConfigPortal(ssid.c_str(), NULL);
 }
@@ -304,7 +304,7 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
     return WL_CONNECTED;
   }
   //check if we have ssid and pass and force those, if not, try with last saved values
-  String hostname = getCustomSsid();
+  String hostname = getCustomHostname();
   DEBUG_WM("Setting hostname to");
   DEBUG_WM(hostname.c_str());
   WiFi.setHostname(hostname.c_str());
@@ -860,24 +860,24 @@ void WiFiManager::setRemoveDuplicateAPs(boolean removeDuplicates) {
   _removeDuplicateAPs = removeDuplicates;
 }
 
-void WiFiManager::setCustomSsid(String ssid) {
-  _customSsid = ssid;
+void WiFiManager::setCustomHostname (String hostname) {
+  _customHostname = hostname;
 }
 
-String WiFiManager::getCustomSsid() {
-  String ssid;
+String WiFiManager::getCustomHostname() {
+  String hostname;
 
-  if (_appendChipIdToSsid) {
-    ssid = (_customSsid + String(ESP_getChipId()));
+  if (_appendChipIdToHostname) {
+    hostname = (_customHostname + String(ESP_getChipId()));
   } else {
-    ssid = _customSsid;
+    hostname = _customHostname;
   }
 
-  return ssid;
+  return hostname;
 }
 
-void WiFiManager::appendChipIdToSsid(bool value) {
-  _appendChipIdToSsid = value;
+void WiFiManager::appendChipIdToHostname(bool value) {
+  _appendChipIdToHostname = value;
 }
 
 template <typename Generic>
