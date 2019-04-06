@@ -11,8 +11,10 @@
  **************************************************************/
 
 #include "WiFiManager.h"
+#include <Preferences.h>
 
 int n_wifi_networks = 0;
+Preferences preferences;
 
 WiFiManagerParameter::WiFiManagerParameter(const char *custom) {
   _id = NULL;
@@ -63,6 +65,11 @@ const char* WiFiManagerParameter::getCustomHTML() {
 }
 
 WiFiManager::WiFiManager() {
+  // Open Preferences with my-app namespace. Each application module, library, etc
+  // has to use a namespace name to prevent key name collisions. We will open storage in
+  // RW-mode (second parameter has to be false).
+  // Note: Namespace name is limited to 15 chars.
+  preferences.begin("WiFiManager", false);
 }
 
 void WiFiManager::addParameter(WiFiManagerParameter *p) {
@@ -131,6 +138,8 @@ void WiFiManager::setupConfigPortal() {
   server->on("/wifisave", std::bind(&WiFiManager::handleWifiSave, this));
   server->on("/i", std::bind(&WiFiManager::handleInfo, this));
   server->on("/r", std::bind(&WiFiManager::handleReset, this));
+  server->on("/changename", std::bind(&WiFiManager::handleChangeName, this, false));
+  server->on("/savename", std::bind(&WiFiManager::handleSaveName, this));
   //server->on("/generate_204", std::bind(&WiFiManager::handle204, this));  //Android/Chrome OS captive portal check.
   //server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
   server->on("/fwlink", std::bind(&WiFiManager::handleWifi, this, false));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
@@ -141,17 +150,14 @@ void WiFiManager::setupConfigPortal() {
 }
 
 boolean WiFiManager::autoConnect() {
-  String ssid;
+  String ssid = getHostname();
 
-  if (_appendChipIdToHostname) {
-    ssid = (_customHostname + String(ESP_getChipId()));
-  } else {
-    ssid = _customHostname;
-  }
   return autoConnect(ssid.c_str(), NULL);
 }
 
 boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
+  bool connected = false;
+
   DEBUG_WM(F(""));
   DEBUG_WM(F("AutoConnect"));
 
@@ -166,10 +172,14 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
     DEBUG_WM(F("IP Address:"));
     DEBUG_WM(WiFi.localIP());
     //connected
-    return true;
+    connected = true;
+  } else {
+    connected = startConfigPortal(apName, apPassword);
   }
 
-  return startConfigPortal(apName, apPassword);
+  preferences.end();
+
+  return connected;
 }
 
 boolean WiFiManager::configPortalHasTimeout(){
@@ -185,13 +195,8 @@ boolean WiFiManager::configPortalHasTimeout(){
 }
 
 boolean WiFiManager::startConfigPortal() {
-  String ssid;
+  String ssid = getHostname();
 
-  if (_appendChipIdToHostname) {
-    ssid = (_customHostname + String(ESP_getChipId()));
-  } else {
-    ssid = _customHostname;
-  }
   return startConfigPortal(ssid.c_str(), NULL);
 }
 
@@ -304,7 +309,7 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
     return WL_CONNECTED;
   }
   //check if we have ssid and pass and force those, if not, try with last saved values
-  String hostname = getCustomHostname();
+  String hostname = getHostname();
   DEBUG_WM("Setting hostname to");
   DEBUG_WM(hostname.c_str());
   WiFi.setHostname(hostname.c_str());
@@ -371,7 +376,7 @@ void WiFiManager::startWPS() {
 #endif
 }
 
-  String WiFiManager::getSSID() {
+String WiFiManager::getSSID() {
   if (_ssid == "") {
     DEBUG_WM(F("Reading SSID"));
     _ssid = WiFi.SSID();
@@ -379,9 +384,9 @@ void WiFiManager::startWPS() {
     DEBUG_WM(_ssid);
   }
   return _ssid;
-  }
+}
 
-  String WiFiManager::getPassword() {
+String WiFiManager::getPassword() {
   if (_pass == "") {
     DEBUG_WM(F("Reading Password"));
     _pass = WiFi.psk();
@@ -389,7 +394,7 @@ void WiFiManager::startWPS() {
     //DEBUG_WM(_pass);
   }
   return _pass;
-  }
+}
 
 String WiFiManager::getConfigPortalSSID() {
   return _apName;
@@ -403,8 +408,11 @@ void WiFiManager::resetSettings() {
   // Ugly workaround for a bug that prevents proper erasing SSID and password. See
   // https://github.com/espressif/arduino-esp32/issues/400#issuecomment-411076993
   WiFi.begin("0", "0");
+  preferences.remove("useHostname");
+  preferences.remove("hostname");
   //delay(200);
 }
+
 void WiFiManager::setTimeout(unsigned long seconds) {
   setConfigPortalTimeout(seconds);
 }
@@ -455,7 +463,7 @@ void WiFiManager::handleRoot() {
   page += _customHeadElement;
   page += FPSTR(WM_HTTP_HEAD_END);
   page += "<h1>";
-  page += _apName;
+  page += getHostname().c_str();
   page += "</h1>";
   page += F("<h3>WiFiManager</h3>");
   page += FPSTR(WM_HTTP_PORTAL_OPTIONS);
@@ -464,6 +472,70 @@ void WiFiManager::handleRoot() {
   server->sendHeader("Content-Length", String(page.length()));
   server->send(200, "text/html", page);
 
+}
+
+void WiFiManager::handleChangeName(bool showError) {
+  String page = FPSTR(WM_HTTP_HEAD);
+  page.replace("{v}", "Config ESP");
+  page += FPSTR(WM_HTTP_SCRIPT);
+  page += FPSTR(WM_HTTP_STYLE);
+  page += _customHeadElement;
+  page += FPSTR(WM_HTTP_HEAD_END);
+
+  page += F("<h3>WiFiManager</h3>");
+
+  if (showError) {
+    page += FPSTR(WM_HTTP_CHANGE_NAME_ERROR_MSG);
+  }
+
+  page += FPSTR(WM_HTTP_CHANGE_NAME_FORM_START);
+  page.replace("{p}", getHostname().c_str());
+
+  page += FPSTR(WM_HTTP_CHANGE_NAME_FORM_END);
+
+  page += FPSTR(WM_HTTP_END);
+
+  server->sendHeader("Content-Length", String(page.length()));
+  server->send(200, "text/html", page);
+
+
+  DEBUG_WM(F("Sent config page"));
+}
+
+bool WiFiManager::checkName(String name) {
+  bool valid = true;
+  char c;
+
+  if ((name.length() == 0) || (name.length() >= 64)) {
+    valid = false;
+  } else {
+    for (uint32_t n = 0; n < name.length(); n++) {
+      c = name.charAt(n);
+
+      if (!(((c >= 'a') && (c <= 'z')) || ((c >= 'A') && (c <= 'Z')) || 
+          ((c >= '0') && (c <= '9')) || (c == '-'))) {
+        valid = false;
+        break;
+      }
+    }
+  }
+
+  return valid;
+}
+
+void WiFiManager::handleSaveName(void) {
+  bool validName = false;
+  String tmp = server->arg("n");
+
+  validName = checkName(tmp);
+
+  if (validName) {
+    preferences.putString("hostname", tmp);
+    preferences.putBool("useHostname", true);
+    handleWifi(false);
+  } else {
+    handleChangeName(true);
+  }
 }
 
 /** Wifi config page handler */
@@ -506,8 +578,9 @@ void WiFiManager::handleWifi(boolean scan) {
   page += FPSTR(WM_HTTP_HEAD_END);
 
   page += "<h1>";
-  page += _apName;
+  page += getHostname().c_str();
   page += "</h1>";
+  page += F("<center>(<a href=\"/changename\">change name</a>)</center>");
   page += F("<h3>WiFiManager</h3>");
 
   if (scanBusy) {
@@ -860,17 +933,21 @@ void WiFiManager::setRemoveDuplicateAPs(boolean removeDuplicates) {
   _removeDuplicateAPs = removeDuplicates;
 }
 
-void WiFiManager::setCustomHostname (String hostname) {
-  _customHostname = hostname;
+void WiFiManager::setDefaultHostname (String hostname) {
+  _defaultHostname = hostname;
 }
 
-String WiFiManager::getCustomHostname() {
+String WiFiManager::getHostname() {
   String hostname;
 
-  if (_appendChipIdToHostname) {
-    hostname = (_customHostname + String(ESP_getChipId()));
+  if (preferences.getBool("useHostname", false)) {
+    hostname = preferences.getString("hostname", "ESP");
   } else {
-    hostname = _customHostname;
+    if (_appendChipIdToHostname) {
+      hostname = (_defaultHostname + String(ESP_getChipId()));
+    } else {
+      hostname = _defaultHostname;
+    }
   }
 
   return hostname;

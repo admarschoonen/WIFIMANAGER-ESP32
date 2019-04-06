@@ -45,6 +45,9 @@ const char WM_HTTP_ITEM[] PROGMEM            = "<div><a href='#p' onclick='c(thi
 const char WM_HTTP_FORM_START[] PROGMEM      = "<form method='get' action='wifisave'><input id='s' name='s' length=32 placeholder='SSID'><br/><input id='p' name='p' length=64 type='password' placeholder='password'><br/>";
 const char WM_HTTP_FORM_PARAM[] PROGMEM      = "<br/><input id='{i}' name='{n}' length={l} placeholder='{p}' value='{v}' {c}>";
 const char WM_HTTP_FORM_END[] PROGMEM        = "<br/><button type='submit'>save</button></form>";
+const char WM_HTTP_CHANGE_NAME_ERROR_MSG[] PROGMEM       = "<p>Invalid name. Please use only letters ('a'-'z'), numbers ('0'-'9') and hyphen ('-') characters.</p>";
+const char WM_HTTP_CHANGE_NAME_FORM_START[] PROGMEM      = "<p>Enter a new name for this device:<br><form method='get' action='savename'><input id='n' name='n' length=32 placeholder='{p}'></p>";
+const char WM_HTTP_CHANGE_NAME_FORM_END[] PROGMEM        = "<br/><button type='submit'>save</button></form>";
 const char WM_HTTP_SCAN_LINK[] PROGMEM       = "<br/><div class=\"c\"><a href=\"/wifi\">Scan</a></div>";
 const char WM_HTTP_SAVED[] PROGMEM           = "<div>Credentials Saved<br />Trying to connect Weread to network.<br />If it fails reconnect to AP to try again</div>";
 const char WM_HTTP_END[] PROGMEM             = "</div></body></html>";
@@ -125,8 +128,8 @@ class WiFiManager
     //if this is true, remove duplicated Access Points - defaut true
     void          setRemoveDuplicateAPs(boolean removeDuplicates);
 
-    void          setCustomHostname(String hostname);
-    String        getCustomHostname();
+    void          setDefaultHostname(String hostname);
+    String        getHostname();
     void          appendChipIdToHostname(bool value);
   private:
     std::unique_ptr<DNSServer>        dnsServer;
@@ -148,7 +151,7 @@ class WiFiManager
     const char*   _apPassword             = NULL;
     String        _ssid                   = "";
     String        _pass                   = "";
-    String        _customHostname         = "ESP";
+    String        _defaultHostname        = "ESP";
     bool          _appendChipIdToHostname = true;
     unsigned long _configPortalTimeout    = 0;
     unsigned long _connectTimeout         = 0;
@@ -177,9 +180,13 @@ class WiFiManager
     int           doConnectWifi(String ssid, String pass, int count);
     uint8_t       waitForConnectResult();
 
+    bool          checkName(String tmp);
+
     void          handleRoot();
     void          handleWifi(boolean scan);
     void          handleWifiSave();
+    void          handleChangeName(boolean showError);
+    void          handleSaveName();
     void          handleInfo();
     void          handleReset();
     void          handleNotFound();
