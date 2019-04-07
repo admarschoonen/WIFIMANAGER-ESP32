@@ -13,6 +13,11 @@
 #include "WiFiManager.h"
 #include <Preferences.h>
 
+#define TICKER_RATE_CONNECTING   0.6
+#define TICKER_RATE_CONFIG       0.2
+#define TICKER_RATE_ERASE        0.05
+
+int WM_LED_PIN = LED_BUILTIN;
 int n_wifi_networks = 0;
 Preferences preferences;
 
@@ -64,13 +69,59 @@ const char* WiFiManagerParameter::getCustomHTML() {
   return _customHTML;
 }
 
+static void tick(void) {
+  int state;
+
+  if (WM_LED_PIN >= 0) {
+    state = digitalRead(WM_LED_PIN);
+    digitalWrite(WM_LED_PIN, !state);
+  }
+}
+
+void WiFiManager::configure(void) {
+  configure(_defaultHostname);
+}
+
+void WiFiManager::configure(String hostname) {
+  configure(hostname, true);
+}
+
+void WiFiManager::configure(String hostname, bool appendChipId) {
+  configure(hostname, appendChipId, LED_BUILTIN, BUTTON_BUILTIN);
+}
+
+void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPin, int buttonPin) {
+  appendChipIdToHostname(appendChipId);
+  setDefaultHostname(defaultHostname);
+  WM_LED_PIN = ledPin;
+  _buttonPin = buttonPin;
+
+  if (WM_LED_PIN >= 0) {
+    pinMode(WM_LED_PIN, OUTPUT);
+  }
+
+  if (_buttonPin >= 0) {
+    pinMode(_buttonPin, INPUT);
+  }
+}
+
 WiFiManager::WiFiManager() {
   // Open Preferences with my-app namespace. Each application module, library, etc
   // has to use a namespace name to prevent key name collisions. We will open storage in
   // RW-mode (second parameter has to be false).
   // Note: Namespace name is limited to 15 chars.
   preferences.begin("WiFiManager", false);
+
   readHostname();
+  configure();
+
+  if (_buttonPin >= 0) {
+    // Give user 1 second chance to press button and reset settings
+    delay(1000);
+    if (digitalRead(_buttonPin) == _buttonPressedValue) {
+      resetSettings();
+    }
+  }
 }
 
 void WiFiManager::addParameter(WiFiManagerParameter *p) {
@@ -159,6 +210,8 @@ boolean WiFiManager::autoConnect() {
 boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   bool connected = false;
 
+  _ticker.attach(TICKER_RATE_CONNECTING, tick);
+
   DEBUG_WM(F(""));
   DEBUG_WM(F("AutoConnect"));
 
@@ -179,6 +232,12 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   }
 
   preferences.end();
+
+  _ticker.detach();
+
+  if (connected && (WM_LED_PIN >= 0)) {
+    digitalWrite(WM_LED_PIN, _ledOnValue);
+  }
 
   return connected;
 }
@@ -215,6 +274,7 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
   _apName = apName;
   _apPassword = apPassword;
 
+  _ticker.attach(TICKER_RATE_CONFIG, tick);
   //notify we entered AP mode
   if ( _apcallback != NULL) {
     _apcallback(this);
@@ -402,6 +462,7 @@ String WiFiManager::getConfigPortalSSID() {
 }
 
 void WiFiManager::resetSettings() {
+  _ticker.attach(TICKER_RATE_ERASE, tick);
   DEBUG_WM(F("settings invalidated"));
   DEBUG_WM(F("THIS MAY CAUSE AP NOT TO START UP PROPERLY. YOU NEED TO COMMENT IT OUT AFTER ERASING THE DATA."));
   WiFi.disconnect(true);
@@ -412,6 +473,12 @@ void WiFiManager::resetSettings() {
   preferences.remove("useHostname");
   preferences.remove("hostname");
   readHostname();
+
+  if (WM_LED_PIN >= 0) {
+    // Delay for 1 second to let user know settings are erased
+    delay(1000);
+  }
+  _ticker.detach();
 }
 
 void WiFiManager::setTimeout(unsigned long seconds) {
@@ -959,6 +1026,15 @@ void WiFiManager::readHostname() {
 
 void WiFiManager::appendChipIdToHostname(bool value) {
   _appendChipIdToHostname = value;
+  readHostname();
+}
+
+void WiFiManager::setLedOnValue(int value) {
+  _ledOnValue = value;
+}
+
+void WiFiManager::setButtonPressedValue(int value) {
+  _buttonPressedValue = value;
 }
 
 template <typename Generic>

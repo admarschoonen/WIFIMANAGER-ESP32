@@ -33,6 +33,16 @@ extern "C" {
 #define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
 #endif
 
+#include <Ticker.h>
+
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
+#ifndef BUTTON_BUILTIN
+#define BUTTON_BUILTIN 0
+#endif
+
 const char WM_HTTP_HEAD[] PROGMEM            = "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\"/><title>{v}</title>";
 const char WM_HTTP_HEAD_REFRESH[] PROGMEM    = "<meta http-equiv=\"refresh\" content=\"1; url=/0wifi\" />";
 const char WM_HTTP_BODY_REFRESH[] PROGMEM    = "<p>Click <a href=\"/0wifi\">here</a> if this page does not refresh after 5 seconds.</p>";
@@ -83,6 +93,10 @@ class WiFiManager
   public:
     WiFiManager();
 
+    void          configure(String hostname);
+    void          configure(String hostname, bool appendChipId);
+    void          configure(String hostname, bool appendChipId, int ledPin, int buttonPin);
+
     boolean       autoConnect();
     boolean       autoConnect(char const *apName, char const *apPassword = NULL);
 
@@ -131,6 +145,8 @@ class WiFiManager
     void          setDefaultHostname(String hostname);
     String        getHostname();
     void          appendChipIdToHostname(bool value);
+    void          setLedOnValue(int value);
+    void          setButtonPressedValue(int value);
   private:
     std::unique_ptr<DNSServer>        dnsServer;
 #ifdef ESP8266
@@ -144,9 +160,11 @@ class WiFiManager
 
     //const String  WM_HTTP_HEAD = "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>{v}</title>";
 
+    void          configure(void);
     void          setupConfigPortal();
     void          startWPS();
 
+    Ticker        _ticker;
     const char*   _apName                 = "no-net";
     const char*   _apPassword             = NULL;
     String        _ssid                   = "";
@@ -157,6 +175,9 @@ class WiFiManager
     unsigned long _configPortalTimeout    = 0;
     unsigned long _connectTimeout         = 0;
     unsigned long _configPortalStart      = 0;
+    int           _ledOnValue             = HIGH;
+    int           _buttonPin              = BUTTON_BUILTIN;
+    int           _buttonPressedValue     = LOW;
 
     IPAddress     _ap_static_ip;
     IPAddress     _ap_static_gw;
