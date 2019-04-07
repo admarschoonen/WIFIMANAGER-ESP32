@@ -70,6 +70,7 @@ WiFiManager::WiFiManager() {
   // RW-mode (second parameter has to be false).
   // Note: Namespace name is limited to 15 chars.
   preferences.begin("WiFiManager", false);
+  readHostname();
 }
 
 void WiFiManager::addParameter(WiFiManagerParameter *p) {
@@ -410,7 +411,7 @@ void WiFiManager::resetSettings() {
   WiFi.begin("0", "0");
   preferences.remove("useHostname");
   preferences.remove("hostname");
-  //delay(200);
+  readHostname();
 }
 
 void WiFiManager::setTimeout(unsigned long seconds) {
@@ -532,6 +533,7 @@ void WiFiManager::handleSaveName(void) {
   if (validName) {
     preferences.putString("hostname", tmp);
     preferences.putBool("useHostname", true);
+    _hostname = tmp;
     handleWifi(false);
   } else {
     handleChangeName(true);
@@ -790,6 +792,7 @@ void WiFiManager::handleWifiSave() {
   page += _customHeadElement;
   page += FPSTR(WM_HTTP_HEAD_END);
   page += FPSTR(WM_HTTP_SAVED);
+  page.replace("{h}", getHostname());
   page += FPSTR(WM_HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
@@ -935,22 +938,23 @@ void WiFiManager::setRemoveDuplicateAPs(boolean removeDuplicates) {
 
 void WiFiManager::setDefaultHostname (String hostname) {
   _defaultHostname = hostname;
+  readHostname();
 }
 
 String WiFiManager::getHostname() {
-  String hostname;
+  return _hostname;
+}
 
+void WiFiManager::readHostname() {
   if (preferences.getBool("useHostname", false)) {
-    hostname = preferences.getString("hostname", "ESP");
+    _hostname = preferences.getString("hostname", "ESP");
   } else {
     if (_appendChipIdToHostname) {
-      hostname = (_defaultHostname + String(ESP_getChipId()));
+      _hostname = (_defaultHostname + String(ESP_getChipId()));
     } else {
-      hostname = _defaultHostname;
+      _hostname = _defaultHostname;
     }
   }
-
-  return hostname;
 }
 
 void WiFiManager::appendChipIdToHostname(bool value) {
