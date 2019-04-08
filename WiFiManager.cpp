@@ -98,6 +98,7 @@ void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPi
 
   if (WM_LED_PIN >= 0) {
     pinMode(WM_LED_PIN, OUTPUT);
+    digitalWrite(WM_LED_PIN, !_ledOnValue);
   }
 
   if (_buttonPin >= 0) {
