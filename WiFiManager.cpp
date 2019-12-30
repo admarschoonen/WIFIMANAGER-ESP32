@@ -87,14 +87,20 @@ void WiFiManager::configure(String hostname) {
 }
 
 void WiFiManager::configure(String hostname, bool appendChipId) {
-  configure(hostname, appendChipId, LED_BUILTIN, BUTTON_BUILTIN);
+  configure(hostname, appendChipId, LED_BUILTIN, false, BUTTON_BUILTIN, false);
 }
 
-void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPin, int buttonPin) {
+void WiFiManager::configure(String hostname, bool appendChipId, int ledPin, int buttonPin) {
+  configure(hostname, appendChipId, ledPin, false, buttonPin, false);
+}
+
+void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert) {
   appendChipIdToHostname(appendChipId);
   setDefaultHostname(defaultHostname);
   WM_LED_PIN = ledPin;
   _buttonPin = buttonPin;
+  _ledOnValue = ledInvert ? !LED_ON_VALUE_DEFAULT : LED_ON_VALUE_DEFAULT;
+  _buttonPressedValue = buttonInvert ? BUTTON_PRESSED_VALUE_DEFAULT : BUTTON_PRESSED_VALUE_DEFAULT;
 
   if (WM_LED_PIN >= 0) {
     pinMode(WM_LED_PIN, OUTPUT);
