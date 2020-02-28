@@ -380,6 +380,12 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
   String hostname = getHostname();
   DEBUG_WM("Setting hostname to");
   DEBUG_WM(hostname.c_str());
+
+  // Workaround for issue where ESP32 forgets its hostname when DHCP lease
+  // renewal is required; see
+  // https://github.com/espressif/arduino-esp32/issues/2537
+  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+
   WiFi.setHostname(hostname.c_str());
   if (ssid != "") {
     WiFi.begin(ssid.c_str(), pass.c_str());
