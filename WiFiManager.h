@@ -62,7 +62,7 @@ const char WM_HTTP_CHANGE_NAME_ERROR_MSG[] PROGMEM       = "<p>Invalid name. Ple
 const char WM_HTTP_CHANGE_NAME_FORM_START[] PROGMEM      = "<p>Enter a new name for this device:<br><form method='get' action='savename'><input id='n' name='n' length=32 placeholder='{p}'></p>";
 const char WM_HTTP_CHANGE_NAME_FORM_END[] PROGMEM        = "<br/><button type='submit'>save</button></form>";
 const char WM_HTTP_SCAN_LINK[] PROGMEM       = "<br/><div class=\"c\"><a href=\"/wifi\">Scan</a></div>";
-const char WM_HTTP_SAVED[] PROGMEM           = "<div>Credentials Saved<br />Trying to connect {h} to network.<br />If it fails reconnect to AP to try again</div>";
+const char WM_HTTP_SAVED[] PROGMEM           = "<div>Credentials Saved<br />Trying to connect {h} to network \"{n}\".<br />If it fails reconnect to AP to try again</div>";
 const char WM_HTTP_END[] PROGMEM             = "</div></body></html>";
 
 #define WIFI_MANAGER_MAX_PARAMS 10

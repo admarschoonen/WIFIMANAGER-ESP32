@@ -95,12 +95,15 @@ void WiFiManager::configure(String hostname, bool appendChipId, int ledPin, int 
 }
 
 void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert) {
-  appendChipIdToHostname(appendChipId);
-  setDefaultHostname(defaultHostname);
+  // Open Preferences with my-app namespace. Each application module, library, etc
+  // has to use a namespace name to prevent key name collisions. We will open storage in
+  // RW-mode (second parameter has to be false).
+  // Note: Namespace name is limited to 15 chars.
+  preferences.begin("WiFiManager", false);
   WM_LED_PIN = ledPin;
   _buttonPin = buttonPin;
   _ledOnValue = ledInvert ? !LED_ON_VALUE_DEFAULT : LED_ON_VALUE_DEFAULT;
-  _buttonPressedValue = buttonInvert ? BUTTON_PRESSED_VALUE_DEFAULT : BUTTON_PRESSED_VALUE_DEFAULT;
+  _buttonPressedValue = buttonInvert ? !BUTTON_PRESSED_VALUE_DEFAULT : BUTTON_PRESSED_VALUE_DEFAULT;
 
   if (WM_LED_PIN >= 0) {
     pinMode(WM_LED_PIN, OUTPUT);
@@ -110,35 +113,32 @@ void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPi
   if (_buttonPin >= 0) {
     pinMode(_buttonPin, INPUT);
   }
-}
-
-WiFiManager::WiFiManager() {
-  // Open Preferences with my-app namespace. Each application module, library, etc
-  // has to use a namespace name to prevent key name collisions. We will open storage in
-  // RW-mode (second parameter has to be false).
-  // Note: Namespace name is limited to 15 chars.
-  preferences.begin("WiFiManager", false);
-
-  readHostname();
-  configure();
 
   if (_buttonPin >= 0) {
     // Give user 1 second chance to press button and reset settings
+    DEBUG_WM("waiting 1 second to check if user presses the button");
     delay(1000);
     if (digitalRead(_buttonPin) == _buttonPressedValue) {
       resetSettings();
     }
   }
+  appendChipIdToHostname(appendChipId);
+  setDefaultHostname(defaultHostname);
+  readHostname();
+}
+
+WiFiManager::WiFiManager() {
+  configure();
 }
 
 void WiFiManager::addParameter(WiFiManagerParameter *p) {
   if(_paramsCount + 1 > WIFI_MANAGER_MAX_PARAMS)
   {
     //Max parameters exceeded!
-	DEBUG_WM("WIFI_MANAGER_MAX_PARAMS exceeded, increase number (in WiFiManager.h) before adding more parameters!");
-	DEBUG_WM("Skipping parameter with ID:");
-	DEBUG_WM(p->getID());
-	return;
+    DEBUG_WM("WIFI_MANAGER_MAX_PARAMS exceeded, increase number (in WiFiManager.h) before adding more parameters!");
+    DEBUG_WM("Skipping parameter with ID:");
+    DEBUG_WM(p->getID());
+    return;
   }
   _params[_paramsCount] = p;
   _paramsCount++;
@@ -873,6 +873,7 @@ void WiFiManager::handleWifiSave() {
   page += FPSTR(WM_HTTP_HEAD_END);
   page += FPSTR(WM_HTTP_SAVED);
   page.replace("{h}", getHostname());
+  page.replace("{n}", _ssid);
   page += FPSTR(WM_HTTP_END);
 
   server->sendHeader("Content-Length", String(page.length()));
@@ -1018,7 +1019,6 @@ void WiFiManager::setRemoveDuplicateAPs(boolean removeDuplicates) {
 
 void WiFiManager::setDefaultHostname (String hostname) {
   _defaultHostname = hostname;
-  readHostname();
 }
 
 String WiFiManager::getHostname() {
