@@ -97,10 +97,10 @@ class WiFiManager
     WiFiManager();
 
     void          configure(String hostname);
-    void          configure(String hostname, bool appendChipId);
-    void          configure(String hostname, bool appendChipId, int ledPin, int buttonPin);
-    void          configure(String hostname, bool appendChipId, int ledPin, bool ledInvert);
-    void          configure(String hostname, bool appendChipId, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert);
+    void          configure(String hostname, bool appendMac);
+    void          configure(String hostname, bool appendMac, int ledPin, int buttonPin);
+    void          configure(String hostname, bool appendMac, int ledPin, bool ledInvert);
+    void          configure(String hostname, bool appendMac, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert);
 
     boolean       autoConnect();
     boolean       autoConnect(char const *apName, char const *apPassword = NULL);
@@ -149,7 +149,8 @@ class WiFiManager
 
     void          setDefaultHostname(String hostname);
     String        getHostname();
-    void          appendChipIdToHostname(bool value);
+    uint64_t      getMac();
+    void          appendMacToHostname(bool value);
     void          setLedOnValue(int value);
     void          setButtonPressedValue(int value);
   private:
@@ -176,7 +177,7 @@ class WiFiManager
     String        _pass                   = "";
     String        _defaultHostname        = "ESP";
     String        _hostname               = "ESP";
-    bool          _appendChipIdToHostname = true;
+    bool          _appendMacToHostname = true;
     unsigned long _configPortalTimeout    = 0;
     unsigned long _connectTimeout         = 0;
     unsigned long _configPortalStart      = 0;

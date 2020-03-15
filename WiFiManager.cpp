@@ -86,15 +86,15 @@ void WiFiManager::configure(String hostname) {
   configure(hostname, true);
 }
 
-void WiFiManager::configure(String hostname, bool appendChipId) {
-  configure(hostname, appendChipId, LED_BUILTIN, false, BUTTON_BUILTIN, false);
+void WiFiManager::configure(String hostname, bool appendMac) {
+  configure(hostname, appendMac, LED_BUILTIN, false, BUTTON_BUILTIN, false);
 }
 
-void WiFiManager::configure(String hostname, bool appendChipId, int ledPin, int buttonPin) {
-  configure(hostname, appendChipId, ledPin, false, buttonPin, false);
+void WiFiManager::configure(String hostname, bool appendMac, int ledPin, int buttonPin) {
+  configure(hostname, appendMac, ledPin, false, buttonPin, false);
 }
 
-void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert) {
+void WiFiManager::configure(String defaultHostname, bool appendMac, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert) {
   // Open Preferences with my-app namespace. Each application module, library, etc
   // has to use a namespace name to prevent key name collisions. We will open storage in
   // RW-mode (second parameter has to be false).
@@ -122,7 +122,7 @@ void WiFiManager::configure(String defaultHostname, bool appendChipId, int ledPi
       resetSettings();
     }
   }
-  appendChipIdToHostname(appendChipId);
+  appendMacToHostname(appendMac);
   setDefaultHostname(defaultHostname);
   readHostname();
 }
@@ -1025,20 +1025,46 @@ String WiFiManager::getHostname() {
   return _hostname;
 }
 
+uint64_t WiFiManager::getMac() {
+  uint64_t tmp;
+  uint64_t tmp64;
+  uint64_t mac_rev = 0;
+  uint64_t n;
+  uint64_t byte;
+  tmp = ESP.getEfuseMac();
+  
+  tmp64 = (tmp & 0xFFFFFF);
+  for (n = 0; n < 3; n++) {
+    byte = ((tmp64 >> (n * 8)) & 0xFF);
+    mac_rev |= (byte << ((5 - n) * 8));
+  }
+  tmp64 = ((tmp >> 24) & 0xFFFFFF);
+  for (n = 0; n < 3; n++) {
+    byte = ((tmp64 >> (n * 8)) & 0xFF);
+    mac_rev |= (byte << ((2 - n) * 8));
+  }
+  return mac_rev;
+}
+
+
 void WiFiManager::readHostname() {
+  String macStr;
+  uint64_t mac64;
   if (preferences.getBool("useHostname", false)) {
     _hostname = preferences.getString("hostname", "ESP");
   } else {
-    if (_appendChipIdToHostname) {
-      _hostname = (_defaultHostname + String(ESP_getChipId()));
+    if (_appendMacToHostname) {
+      mac64 = getMac();
+      macStr = String((uint16_t) (mac64 >> 32), HEX) + String((uint32_t) mac64, HEX);
+      _hostname = (_defaultHostname + macStr);
     } else {
       _hostname = _defaultHostname;
     }
   }
 }
 
-void WiFiManager::appendChipIdToHostname(bool value) {
-  _appendChipIdToHostname = value;
+void WiFiManager::appendMacToHostname(bool value) {
+  _appendMacToHostname = value;
   readHostname();
 }
 
