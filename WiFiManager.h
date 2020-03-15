@@ -46,6 +46,8 @@ extern "C" {
 #define LED_ON_VALUE_DEFAULT HIGH
 #define BUTTON_PRESSED_VALUE_DEFAULT LOW
 
+#define WM_HAS_GET_MAC_FUNCTION
+
 const char WM_HTTP_HEAD[] PROGMEM            = "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\"/><title>{v}</title>";
 const char WM_HTTP_HEAD_REFRESH[] PROGMEM    = "<meta http-equiv=\"refresh\" content=\"1; url=/0wifi\" />";
 const char WM_HTTP_BODY_REFRESH[] PROGMEM    = "<p>Click <a href=\"/0wifi\">here</a> if this page does not refresh after 5 seconds.</p>";
