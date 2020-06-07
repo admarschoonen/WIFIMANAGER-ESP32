@@ -16,6 +16,7 @@
 #define TICKER_RATE_CONNECTING   0.6
 #define TICKER_RATE_CONFIG       0.2
 #define TICKER_RATE_ERASE        0.05
+#define DEFAULT_TIMEOUT        300
 
 int WM_LED_PIN = LED_BUILTIN;
 int n_wifi_networks = 0;
@@ -43,6 +44,7 @@ void WiFiManagerParameter::init(const char *id, const char *placeholder, const c
   _placeholder = placeholder;
   _length = length;
   _value = new char[length + 1];
+
   for (int i = 0; i < length; i++) {
     _value[i] = 0;
   }
@@ -218,6 +220,7 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   bool connected = false;
 
   _ticker.attach(TICKER_RATE_CONNECTING, tick);
+  setTimeout(DEFAULT_TIMEOUT);
 
   DEBUG_WM(F(""));
   DEBUG_WM(F("AutoConnect"));
