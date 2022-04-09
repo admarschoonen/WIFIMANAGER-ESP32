@@ -387,7 +387,14 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
   // Workaround for issue where ESP32 forgets its hostname when DHCP lease
   // renewal is required; see
   // https://github.com/espressif/arduino-esp32/issues/2537
-  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
+  //
+  // Apparently, with arduino-esp32 2.0.2, this workaround kills the wifi. 
+  // Only known solution is to remove the workaround and accept that device
+  // is difficult to find on the network. See also 
+  // https://github.com/espressif/arduino-esp32/issues/4732#issuecomment-763982089 
+  // and https://github.com/dJPoida/garage_bot/issues/1
+  //
+  // WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE);
 
   WiFi.setHostname(hostname.c_str());
   if (ssid != "") {
