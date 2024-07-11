@@ -33,8 +33,6 @@ extern "C" {
 #define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
 #endif
 
-#include <Ticker.h>
-
 #ifndef LED_BUILTIN
 #define LED_BUILTIN 2
 #endif
@@ -90,17 +88,32 @@ class WiFiManagerParameter {
     friend class WiFiManager;
 };
 
-
 class WiFiManager
 {
   public:
     WiFiManager();
+
+    enum Mode {
+      CONNECTING,
+      SCANNING,
+      PORTAL,
+      CONNECTED,
+      DISCONNECTED,
+      ERASING,
+    };
+
+    struct Status {
+      uint32_t wifi_status;
+      Mode mode;
+    };
 
     void          configure(String hostname);
     void          configure(String hostname, bool appendMac);
     void          configure(String hostname, bool appendMac, int ledPin, int buttonPin);
     void          configure(String hostname, bool appendMac, int ledPin, bool ledInvert);
     void          configure(String hostname, bool appendMac, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert);
+    void          configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin);
+    void          configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin, bool buttonInvert);
 
     boolean       autoConnect();
     boolean       autoConnect(char const *apName, char const *apPassword = NULL);
@@ -170,7 +183,6 @@ class WiFiManager
     void          setupConfigPortal();
     void          startWPS();
 
-    Ticker        _ticker;
     const char*   _apName                 = "no-net";
     const char*   _apPassword             = NULL;
     String        _ssid                   = "";
@@ -184,6 +196,7 @@ class WiFiManager
     int           _ledOnValue             = LED_ON_VALUE_DEFAULT;
     int           _buttonPin              = BUTTON_BUILTIN;
     int           _buttonPressedValue     = BUTTON_PRESSED_VALUE_DEFAULT;
+    bool          _ledInvert              = false;
 
     IPAddress     _ap_static_ip;
     IPAddress     _ap_static_gw;
@@ -203,7 +216,7 @@ class WiFiManager
     //String        getEEPROMString(int start, int len);
     //void          setEEPROMString(int start, int len, String string);
 
-    int           status = WL_IDLE_STATUS;
+    int           wifiStatus = WL_IDLE_STATUS;
     int           connectWifi(String ssid, String pass);
     int           doConnectWifi(String ssid, String pass, int count);
     uint8_t       waitForConnectResult();
@@ -234,8 +247,11 @@ class WiFiManager
     boolean       connect;
     boolean       _debug = true;
 
-    void (*_apcallback)(WiFiManager*) = NULL;
-    void (*_savecallback)(void) = NULL;
+    void (* _apcallback)(WiFiManager*) = NULL;
+    void (* _savecallback)(void) = NULL;
+    void (* _statusCb)(Status status) = nullptr;
+
+    Status        status;
 
     WiFiManagerParameter* _params[WIFI_MANAGER_MAX_PARAMS];
 

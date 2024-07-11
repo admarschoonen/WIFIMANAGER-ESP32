@@ -13,9 +13,6 @@
 #include "WiFiManager-esp32.h"
 #include <Preferences.h>
 
-#define TICKER_RATE_CONNECTING   0.6
-#define TICKER_RATE_CONFIG       0.2
-#define TICKER_RATE_ERASE        0.05
 #define DEFAULT_TIMEOUT        300
 
 #ifndef LED_BUILTIN
@@ -75,15 +72,6 @@ const char* WiFiManagerParameter::getCustomHTML() {
   return _customHTML;
 }
 
-static void tick(void) {
-  int state;
-
-  if (WM_LED_PIN >= 0) {
-    state = digitalRead(WM_LED_PIN);
-    digitalWrite(WM_LED_PIN, !state);
-  }
-}
-
 void WiFiManager::configure(void) {
   configure(_defaultHostname);
 }
@@ -100,17 +88,30 @@ void WiFiManager::configure(String hostname, bool appendMac, int ledPin, int but
   configure(hostname, appendMac, ledPin, false, buttonPin, false);
 }
 
-void WiFiManager::configure(String defaultHostname, bool appendMac, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert) {
+void WiFiManager::configure(String hostname, bool appendMac, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert) {
+  WM_LED_PIN = ledPin;
+  _ledInvert = ledInvert;
+  configure(hostname, appendMac, nullptr, buttonPin, buttonInvert);
+}
+
+void WiFiManager::configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin) {
+  configure(hostname, appendMac, statusCb, buttonPin, false);
+}
+
+void WiFiManager::configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin, bool buttonInvert) {
   // Open Preferences with my-app namespace. Each application module, library, etc
   // has to use a namespace name to prevent key name collisions. We will open storage in
   // RW-mode (second parameter has to be false).
   // Note: Namespace name is limited to 15 chars.
   preferences.begin("WiFiManager", false);
-  WM_LED_PIN = ledPin;
   _buttonPin = buttonPin;
-  _ledOnValue = ledInvert ? !LED_ON_VALUE_DEFAULT : LED_ON_VALUE_DEFAULT;
   _buttonPressedValue = buttonInvert ? !BUTTON_PRESSED_VALUE_DEFAULT : BUTTON_PRESSED_VALUE_DEFAULT;
+  _statusCb = statusCb;
 
+  status.mode = CONNECTING;
+  if (_statusCb) {
+    _statusCb(status);
+  }
   if (WM_LED_PIN >= 0) {
     pinMode(WM_LED_PIN, OUTPUT);
     digitalWrite(WM_LED_PIN, !_ledOnValue);
@@ -129,7 +130,7 @@ void WiFiManager::configure(String defaultHostname, bool appendMac, int ledPin, 
     }
   }
   appendMacToHostname(appendMac);
-  setDefaultHostname(defaultHostname);
+  setDefaultHostname(hostname);
   readHostname();
 }
 
@@ -223,7 +224,6 @@ boolean WiFiManager::autoConnect() {
 boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   bool connected = false;
 
-  _ticker.attach(TICKER_RATE_CONNECTING, tick);
   setTimeout(DEFAULT_TIMEOUT);
 
   DEBUG_WM(F(""));
@@ -249,10 +249,14 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
 
   preferences.end();
 
-  _ticker.detach();
-
-  if (connected && (WM_LED_PIN >= 0)) {
-    digitalWrite(WM_LED_PIN, _ledOnValue);
+  if (connected) {
+    if (WM_LED_PIN >= 0) {
+      digitalWrite(WM_LED_PIN, _ledOnValue);
+    }
+  } else {
+    if (WM_LED_PIN >= 0) {
+      digitalWrite(WM_LED_PIN, !_ledOnValue);
+    }
   }
 
   return connected;
@@ -280,6 +284,12 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
   // First scan networks (so user doesn't have to wait)
   // Scan does not seem to work without disconnecting first
   WiFi.disconnect(true);
+
+  status.mode = SCANNING;
+  if (_statusCb) {
+    _statusCb(status);
+  }
+
   n_wifi_networks = WiFi.scanNetworks();
   DEBUG_WM(F("Scan done"));
 
@@ -287,10 +297,14 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
   WiFi.mode(WIFI_AP_STA);
   DEBUG_WM("SET AP STA");
 
+  status.mode = PORTAL;
+  if (_statusCb) {
+    _statusCb(status);
+  }
+
   _apName = apName;
   _apPassword = apPassword;
 
-  _ticker.attach(TICKER_RATE_CONFIG, tick);
   //notify we entered AP mode
   if ( _apcallback != NULL) {
     _apcallback(this);
@@ -313,14 +327,39 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
     if (connect) {
       connect = false;
       delay(2000);
+
+      status.mode = CONNECTING;
+      if (_statusCb) {
+        _statusCb(status);
+      }
+
       DEBUG_WM(F("Connecting to new AP"));
 
       // using user-provided  _ssid, _pass in place of system-stored ssid and pass
       if (connectWifi(_ssid, _pass) != WL_CONNECTED) {
         DEBUG_WM(F("Failed to connect."));
+
+        status.mode = DISCONNECTED;
+        if (_statusCb) {
+          _statusCb(status);
+        }
+
+        if (WM_LED_PIN >= 0) {
+          digitalWrite(WM_LED_PIN, !_ledOnValue);
+        }
       } else {
         //connected
         WiFi.mode(WIFI_STA);
+
+        status.mode = CONNECTED;
+        if (_statusCb) {
+          _statusCb(status);
+        }
+
+        if (WM_LED_PIN >= 0) {
+          digitalWrite(WM_LED_PIN, _ledOnValue);
+        }
+
         //notify that configuration has changed and any optional parameters should be saved
         if ( _savecallback != NULL) {
           //todo: check if any custom parameters actually exist, and check if they really changed maybe
@@ -439,19 +478,19 @@ uint8_t WiFiManager::waitForConnectResult() {
     DEBUG_WM (F("Waiting for connection result with time out"));
     unsigned long start = millis();
     boolean keepConnecting = true;
-    uint8_t status;
+    uint8_t wifiStatus;
     while (keepConnecting) {
-      status = WiFi.status();
+      wifiStatus = WiFi.status();
       if (millis() > start + _connectTimeout) {
         keepConnecting = false;
         DEBUG_WM (F("Connection timed out"));
       }
-      if (status == WL_CONNECTED || status == WL_CONNECT_FAILED) {
+      if (wifiStatus == WL_CONNECTED || wifiStatus == WL_CONNECT_FAILED) {
         keepConnecting = false;
       }
       delay(100);
     }
-    return status;
+    return wifiStatus;
   }
 }
 
@@ -491,7 +530,10 @@ String WiFiManager::getConfigPortalSSID() {
 }
 
 void WiFiManager::resetSettings() {
-  _ticker.attach(TICKER_RATE_ERASE, tick);
+  status.mode = ERASING;
+  if (_statusCb) {
+    _statusCb(status);
+  }
   DEBUG_WM(F("settings invalidated"));
   DEBUG_WM(F("THIS MAY CAUSE AP NOT TO START UP PROPERLY. YOU NEED TO COMMENT IT OUT AFTER ERASING THE DATA."));
   WiFi.disconnect(true);
@@ -507,7 +549,6 @@ void WiFiManager::resetSettings() {
     // Delay for 1 second to let user know settings are erased
     delay(1000);
   }
-  _ticker.detach();
 }
 
 void WiFiManager::setTimeout(unsigned long seconds) {
