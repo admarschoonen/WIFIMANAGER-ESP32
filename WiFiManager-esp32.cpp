@@ -132,6 +132,7 @@ void WiFiManager::configure(String hostname, bool appendMac, void (*statusCb)(St
   appendMacToHostname(appendMac);
   setDefaultHostname(hostname);
   readHostname();
+  readNetworkCredentials();
 }
 
 WiFiManager::WiFiManager() {
@@ -142,14 +143,14 @@ void WiFiManager::addParameter(WiFiManagerParameter *p) {
   if(_paramsCount + 1 > WIFI_MANAGER_MAX_PARAMS)
   {
     //Max parameters exceeded!
-    DEBUG_WM("WIFI_MANAGER_MAX_PARAMS exceeded, increase number (in WiFiManager.h) before adding more parameters!");
-    DEBUG_WM("Skipping parameter with ID:");
+    DEBUG_WM(F("WIFI_MANAGER_MAX_PARAMS exceeded, increase number (in WiFiManager.h) before adding more parameters!"));
+    DEBUG_WM(F("Skipping parameter with ID: "));
     DEBUG_WM(p->getID());
     return;
   }
   _params[_paramsCount] = p;
   _paramsCount++;
-  DEBUG_WM("Adding parameter");
+  DEBUG_WM(F("Adding parameter: "));
   DEBUG_WM(p->getID());
 }
 
@@ -163,9 +164,9 @@ void WiFiManager::setupConfigPortal() {
   server.reset(new WebServer(80));
 #endif
 
-  DEBUG_WM(F(""));
   _configPortalStart = millis();
 
+  DEBUG_WM(F("Access point name: "));
   DEBUG_WM(_apName);
   if (_apPassword != NULL) {
     if (strlen(_apPassword) < 8 || strlen(_apPassword) > 63) {
@@ -173,6 +174,7 @@ void WiFiManager::setupConfigPortal() {
       DEBUG_WM(F("Invalid AccessPoint password. Ignoring"));
       _apPassword = NULL;
     }
+    DEBUG_WM(F("Password: "));
     DEBUG_WM(_apPassword);
   }
 
@@ -183,7 +185,7 @@ void WiFiManager::setupConfigPortal() {
   }
 
   if (_apPassword != NULL) {
-    WiFi.softAP(_apName, _apPassword);//password option
+    WiFi.softAP(_apName, _apPassword); //password option
   } else {
     WiFi.softAP(_apName);
   }
@@ -229,21 +231,25 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   DEBUG_WM(F(""));
   DEBUG_WM(F("AutoConnect"));
 
-  // read eeprom for ssid and pass
-  //String ssid = getSSID();
-  //String pass = getPassword();
-
   // attempt to connect; should it fail, fall back to AP
-  DEBUG_WM(F("Calling WiFi.mode(WIFI_STA)"));
   WiFi.mode(WIFI_STA);
-  DEBUG_WM(F("Returned from WiFi.mode(WIFI_STA)"));
 
-  if (connectWifi("", "") == WL_CONNECTED)   {
-    DEBUG_WM(F("IP Address:"));
-    DEBUG_WM(WiFi.localIP());
-    //connected
-    connected = true;
+  // Do not use connectWifi("", ""). While this method should use the last used
+  // SSID and password, these settings are not always properly stored. Instead,
+  // it is better to rely on the ssid and password stored in user preferences
+  // (already loaded in _ssid and _pass)
+  if (_ssid != "") {
+    DEBUG_WM(F("Connecting to network: "));
+    DEBUG_WM(_ssid);
+    if (connectWifi(_ssid, _pass) == WL_CONNECTED)   {
+      DEBUG_WM(F("IP Address:"));
+      DEBUG_WM(WiFi.localIP());
+      connected = true;
+    } else {
+      connected = startConfigPortal(apName, apPassword);
+    }
   } else {
+    DEBUG_WM("Starting portal");
     connected = startConfigPortal(apName, apPassword);
   }
 
@@ -398,8 +404,8 @@ int WiFiManager::connectWifi(String ssid, String pass) {
     WiFi.disconnect(true);
     connRes = doConnectWifi(ssid, pass, 1);
   }
-  DEBUG_WM ("Connection result: ");
-  DEBUG_WM ( connRes );
+  DEBUG_WM(F("Connection result: "));
+  DEBUG_WM(connRes);
 
   //not connected, WPS enabled, no pass - first attempt
   if (_tryWPS && connRes != WL_CONNECTED && pass == "") {
@@ -417,6 +423,7 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
       DEBUG_WM(F("Custom STA IP/GW/Subnet"));
     }
     WiFi.config(_sta_static_ip, _sta_static_gw, _sta_static_sn);
+    DEBUG_WM(F("Local IP:"));
     DEBUG_WM(WiFi.localIP());
   }
   //fix for auto connect racing issue
@@ -426,7 +433,7 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
   }
   //check if we have ssid and pass and force those, if not, try with last saved values
   String hostname = getHostname();
-  DEBUG_WM("Setting hostname to");
+  DEBUG_WM(F("Setting hostname to: "));
   DEBUG_WM(hostname.c_str());
 
   // Workaround for issue where ESP32 forgets its hostname when DHCP lease
@@ -447,7 +454,8 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
   } else {
     if (WiFi.SSID()) {
       if (count == 0) {
-        DEBUG_WM("Using last saved values, should be faster");
+        DEBUG_WM(F("Connecting to network "));
+        DEBUG_WM(_ssid);
       }
 #if defined(ESP8266)
       //trying to fix connection in progress hanging
@@ -459,6 +467,8 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
 #endif
 
       WiFi.begin();
+      WiFi.mode(WIFI_STA);
+      connectWifi(_ssid, _pass);
     } else {
       if (count == 0) {
         DEBUG_WM("No saved credentials");
@@ -475,7 +485,7 @@ uint8_t WiFiManager::waitForConnectResult() {
   if (_connectTimeout == 0) {
     return WiFi.waitForConnectResult();
   } else {
-    DEBUG_WM (F("Waiting for connection result with time out"));
+    DEBUG_WM(F("Waiting for connection result with time out"));
     unsigned long start = millis();
     boolean keepConnecting = true;
     uint8_t wifiStatus;
@@ -483,7 +493,7 @@ uint8_t WiFiManager::waitForConnectResult() {
       wifiStatus = WiFi.status();
       if (millis() > start + _connectTimeout) {
         keepConnecting = false;
-        DEBUG_WM (F("Connection timed out"));
+        DEBUG_WM(F("Connection timed out"));
       }
       if (wifiStatus == WL_CONNECTED || wifiStatus == WL_CONNECT_FAILED) {
         keepConnecting = false;
@@ -517,10 +527,7 @@ String WiFiManager::getSSID() {
 
 String WiFiManager::getPassword() {
   if (_pass == "") {
-    DEBUG_WM(F("Reading Password"));
     _pass = WiFi.psk();
-    DEBUG_WM("Password: " + _pass);
-    //DEBUG_WM(_pass);
   }
   return _pass;
 }
@@ -530,6 +537,7 @@ String WiFiManager::getConfigPortalSSID() {
 }
 
 void WiFiManager::resetSettings() {
+  Mode mode_prev = status.mode;
   status.mode = ERASING;
   if (_statusCb) {
     _statusCb(status);
@@ -543,11 +551,17 @@ void WiFiManager::resetSettings() {
   WiFi.begin("0", "0");
   preferences.remove("useHostname");
   preferences.remove("hostname");
+  preferences.remove("ssid");
+  preferences.remove("pass");
   readHostname();
 
   if (WM_LED_PIN >= 0) {
     // Delay for 1 second to let user know settings are erased
     delay(1000);
+  }
+  status.mode = mode_prev;
+  if (_statusCb) {
+    _statusCb(status);
   }
 }
 
@@ -888,6 +902,13 @@ void WiFiManager::handleWifiSave() {
   _ssid = server->arg("s").c_str();
   _pass = server->arg("p").c_str();
 
+  DEBUG_WM("Network: " + _ssid);
+  DEBUG_WM(WiFi.SSID());
+  DEBUG_WM("Password: " + _pass);
+
+  preferences.putString("ssid", _ssid);
+  preferences.putString("pass", _pass);
+
   //parameters
   for (int i = 0; i < _paramsCount; i++) {
     if (_params[i] == NULL) {
@@ -897,26 +918,27 @@ void WiFiManager::handleWifiSave() {
     String value = server->arg(_params[i]->getID()).c_str();
     //store it in array
     value.toCharArray(_params[i]->_value, _params[i]->_length);
-    DEBUG_WM(F("Parameter"));
+    DEBUG_WM(F("Parameter: "));
     DEBUG_WM(_params[i]->getID());
+    DEBUG_WM(F("Value: "));
     DEBUG_WM(value);
   }
 
   if (server->arg("ip") != "") {
-    DEBUG_WM(F("static ip"));
+    DEBUG_WM(F("static ip: "));
     DEBUG_WM(server->arg("ip"));
     //_sta_static_ip.fromString(server->arg("ip"));
     String ip = server->arg("ip");
     optionalIPFromString(&_sta_static_ip, ip.c_str());
   }
   if (server->arg("gw") != "") {
-    DEBUG_WM(F("static gateway"));
+    DEBUG_WM(F("static gateway: "));
     DEBUG_WM(server->arg("gw"));
     String gw = server->arg("gw");
     optionalIPFromString(&_sta_static_gw, gw.c_str());
   }
   if (server->arg("sn") != "") {
-    DEBUG_WM(F("static netmask"));
+    DEBUG_WM(F("static netmask: "));
     DEBUG_WM(server->arg("sn"));
     String sn = server->arg("sn");
     optionalIPFromString(&_sta_static_sn, sn.c_str());
@@ -1118,6 +1140,11 @@ void WiFiManager::readHostname() {
       _hostname = _defaultHostname;
     }
   }
+}
+
+void WiFiManager::readNetworkCredentials() {
+  _ssid = preferences.getString("ssid", "ESP");
+  _pass = preferences.getString("pass", "ESP");
 }
 
 void WiFiManager::appendMacToHostname(bool value) {

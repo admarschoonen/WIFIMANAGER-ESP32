@@ -223,6 +223,7 @@ class WiFiManager
 
     bool          checkName(String tmp);
     void          readHostname();
+    void          readNetworkCredentials();
 
     void          handleRoot();
     void          handleWifi(boolean scan);
