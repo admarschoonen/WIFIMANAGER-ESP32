@@ -231,6 +231,9 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   DEBUG_WM(F(""));
   DEBUG_WM(F("AutoConnect"));
 
+  String macStr = getMacAsString(true);
+  DEBUG_WM("MAC: " + macStr);
+
   // attempt to connect; should it fail, fall back to AP
   WiFi.mode(WIFI_STA);
 
@@ -1125,6 +1128,22 @@ uint64_t WiFiManager::getMac() {
   return mac_rev;
 }
 
+String WiFiManager::getMacAsString(bool insertColons) {
+  uint64_t mac64 = getMac();
+  String macStr = String((uint16_t) (mac64 >> 32), HEX) + String((uint32_t) mac64, HEX);
+  int length = macStr.length();
+
+  macStr.toUpperCase();
+
+  if (insertColons) {
+    for (int i = length - 2; i > 0; i -= 2) {
+      macStr = macStr.substring(0, i) + ":" + macStr.substring(i);
+    }
+  }
+
+  return macStr;
+}
+
 
 void WiFiManager::readHostname() {
   String macStr;
@@ -1133,9 +1152,8 @@ void WiFiManager::readHostname() {
     _hostname = preferences.getString("hostname", "ESP");
   } else {
     if (_appendMacToHostname) {
-      mac64 = getMac();
-      macStr = String((uint16_t) (mac64 >> 32), HEX) + String((uint32_t) mac64, HEX);
-      _hostname = (_defaultHostname + macStr);
+      macStr = getMacAsString(false);
+      _hostname = (_defaultHostname + "-" + macStr);
     } else {
       _hostname = _defaultHostname;
     }

@@ -163,6 +163,7 @@ class WiFiManager
     void          setDefaultHostname(String hostname);
     String        getHostname();
     uint64_t      getMac();
+    String        getMacAsString(bool insertColons);
     void          appendMacToHostname(bool value);
     void          setLedOnValue(int value);
     void          setButtonPressedValue(int value);
