@@ -72,32 +72,6 @@ const char* WiFiManagerParameter::getCustomHTML() {
   return _customHTML;
 }
 
-void WiFiManager::configure(void) {
-  configure(_defaultHostname);
-}
-
-void WiFiManager::configure(String hostname) {
-  configure(hostname, true);
-}
-
-void WiFiManager::configure(String hostname, bool appendMac) {
-  configure(hostname, appendMac, LED_BUILTIN, false, BUTTON_BUILTIN, false);
-}
-
-void WiFiManager::configure(String hostname, bool appendMac, int ledPin, int buttonPin) {
-  configure(hostname, appendMac, ledPin, false, buttonPin, false);
-}
-
-void WiFiManager::configure(String hostname, bool appendMac, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert) {
-  WM_LED_PIN = ledPin;
-  _ledInvert = ledInvert;
-  configure(hostname, appendMac, nullptr, buttonPin, buttonInvert);
-}
-
-void WiFiManager::configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin) {
-  configure(hostname, appendMac, statusCb, buttonPin, false);
-}
-
 void WiFiManager::configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin, bool buttonInvert) {
   // Open Preferences with my-app namespace. Each application module, library, etc
   // has to use a namespace name to prevent key name collisions. We will open storage in
@@ -136,7 +110,6 @@ void WiFiManager::configure(String hostname, bool appendMac, void (*statusCb)(St
 }
 
 WiFiManager::WiFiManager() {
-  configure();
 }
 
 void WiFiManager::addParameter(WiFiManagerParameter *p) {

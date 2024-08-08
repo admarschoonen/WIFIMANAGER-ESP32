@@ -107,12 +107,6 @@ class WiFiManager
       Mode mode;
     };
 
-    void          configure(String hostname);
-    void          configure(String hostname, bool appendMac);
-    void          configure(String hostname, bool appendMac, int ledPin, int buttonPin);
-    void          configure(String hostname, bool appendMac, int ledPin, bool ledInvert);
-    void          configure(String hostname, bool appendMac, int ledPin, bool ledInvert, int buttonPin, bool buttonInvert);
-    void          configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin);
     void          configure(String hostname, bool appendMac, void (*statusCb)(Status status), int buttonPin, bool buttonInvert);
 
     boolean       autoConnect();
