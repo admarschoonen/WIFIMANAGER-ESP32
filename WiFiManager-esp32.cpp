@@ -123,8 +123,8 @@ void WiFiManager::configure(String hostname, bool appendMac, void (*statusCb)(St
 
   if (_buttonPin >= 0) {
     // Give user 1 second chance to press button and reset settings
-    DEBUG_WM("waiting 1 second to check if user presses the button");
-    delay(1000);
+    DEBUG_WM("Waiting 3 seconds to check if user presses the button");
+    delay(3000);
     if (digitalRead(_buttonPin) == _buttonPressedValue) {
       resetSettings();
     }
@@ -410,6 +410,16 @@ int WiFiManager::connectWifi(String ssid, String pass) {
   DEBUG_WM(F("Connection result: "));
   DEBUG_WM(connRes);
 
+  if (WiFi.status() == WL_CONNECTED) {
+    status.mode = CONNECTED;
+  } else if (WiFi.status() == WL_DISCONNECTED) {
+    status.mode = DISCONNECTED;
+  }
+
+  if (_statusCb) {
+    _statusCb(status);
+  }
+
   //not connected, WPS enabled, no pass - first attempt
   if (_tryWPS && connRes != WL_CONNECTED && pass == "") {
     startWPS();
@@ -431,6 +441,10 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
   }
   //fix for auto connect racing issue
   if (WiFi.status() == WL_CONNECTED) {
+    status.mode = CONNECTED;
+    if (_statusCb) {
+      _statusCb(status);
+    }
     DEBUG_WM("Already connected. Bailing out.");
     return WL_CONNECTED;
   }
@@ -455,7 +469,7 @@ int WiFiManager::doConnectWifi(String ssid, String pass, int count) {
   if (ssid != "") {
     WiFi.begin(ssid.c_str(), pass.c_str());
   } else {
-    if (WiFi.SSID()) {
+    if (_ssid) {
       if (count == 0) {
         DEBUG_WM(F("Connecting to network "));
         DEBUG_WM(_ssid);
@@ -503,6 +517,16 @@ uint8_t WiFiManager::waitForConnectResult() {
       }
       delay(100);
     }
+    
+    if (wifiStatus == WL_CONNECTED) {
+      status.mode = CONNECTED;
+    } else if (wifiStatus == WL_CONNECT_FAILED) {
+      status.mode = CONNECTED;
+    }
+
+    if (_statusCb) {
+      _statusCb(status);
+    }
     return wifiStatus;
   }
 }
@@ -519,19 +543,10 @@ void WiFiManager::startWPS() {
 }
 
 String WiFiManager::getSSID() {
-  if (_ssid == "") {
-    DEBUG_WM(F("Reading SSID"));
-    _ssid = WiFi.SSID();
-    DEBUG_WM(F("SSID: "));
-    DEBUG_WM(_ssid);
-  }
   return _ssid;
 }
 
 String WiFiManager::getPassword() {
-  if (_pass == "") {
-    _pass = WiFi.psk();
-  }
   return _pass;
 }
 
@@ -906,7 +921,6 @@ void WiFiManager::handleWifiSave() {
   _pass = server->arg("p").c_str();
 
   DEBUG_WM("Network: " + _ssid);
-  DEBUG_WM(WiFi.SSID());
   DEBUG_WM("Password: " + _pass);
 
   preferences.putString("ssid", _ssid);
