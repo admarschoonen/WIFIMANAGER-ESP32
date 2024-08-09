@@ -1,5 +1,5 @@
 # WiFiManager
-ESP32&&ESP8266 WiFi Connection manager with fallback web configuration portal
+ESP32 WiFi Connection manager with fallback web configuration portal
 
 
 The configuration portal is of the captive variety, so on various devices it will present the configuration dialogue as soon as you connect to the created access point.
@@ -7,88 +7,74 @@ The configuration portal is of the captive variety, so on various devices it wil
 Fork from [Zhouhan0126 WIFIMANAGER-ESP32](https://github.com/zhouhan0126/WIFIMANAGER-ESP32) with various patches.
 
 ## Library
-This library uses the WebServer and DNSServer libraries. These are included in the [arduino-esp32 project](https://github.com/espressif/arduino-esp32) from master branch on 2019-02-16, git hash 89d6b89.
+This library uses the WebServer and DNSServer libraries.
 
 ## How It Looks
-![ESP8266 WiFi Captive Portal Homepage](Screenshot_20190222-113249.png)
+![ESP32 WiFi Captive Portal Homepage](Screenshot_20190222-113249.png)
 
 
 ### Usage
 - Include in your sketch
 ```cpp
-#include <WiFiManager.h>         
+#include <WiFiManager-ESP32.h>         
 
 ```
 
-- Initialize library, in your setup function add
+- Create a global WiFiManager object
 ```cpp
 WiFiManager wifiManager;
 ```
 
-- Also in the setup function add
+- In the setup function add
 ```cpp
-//first parameter is name of access point, second is the password
-wifiManager.autoConnect("AP-NAME", "AP-PASSWORD");
-```
-if you just want an unsecured access point
-```cpp
-wifiManager.autoConnect("AP-NAME");
-```
-or if you want to use and auto generated name from 'ESP' and the esp's Chip ID use
-```cpp
-wifiManager.autoConnect();
+wifiManager.configure("esp32", nullptr, BUTTON_BUILTIN, false);
+// first parameter is name of access point, second is the callback function, 
+// third is the input pin that can be used to reset wifi settings, fourth is whether this
+// input should be inverted or not
 ```
 
 After you write your sketch and start the ESP, it will try to connect to WiFi. If it fails it starts in Access Point mode.
-While in AP mode, connect to it then open a browser to the gateway IP, default 192.168.4.1, configure wifi, save and it should reboot and connect.
+While in AP mode, connect to it. Your browser should automatically open and load the configuration page; if not go to 192.168.4.1. Configure wifi, save and it should reboot and connect.
 
-Also see [examples](https://github.com/tzapu/WiFiManager/tree/master/examples).
+If you're application needs to be notified of the configuration process, you can pass a callback function instead of the `nullptr`:
+
+```cpp
+wifiManager.configure("esp32", nullptr, BUTTON_BUILTIN, false);
+```
+
+The following example function will blink an led at different rates for different parts of the configuration process.
+
+```
+Ticker ticker;
+
+void wifiManagerCb(WiFiManager::Status status) {
+    if (ticker.active()) {
+        ticker.detach();
+    }
+
+    if (status.mode == WiFiManager::Mode::CONNECTING) {
+        ticker.attach(TICKER_RATE_CONNECTING, tick);
+        Serial.println("CONNECTING");
+    } else if (status.mode == WiFiManager::Mode::SCANNING) {
+        ticker.attach(TICKER_RATE_CONNECTING, tick);
+        Serial.println("SCANNING");
+    } else if (status.mode == WiFiManager::Mode::PORTAL) {
+        ticker.attach(TICKER_RATE_CONFIG, tick);
+        Serial.println("PORTAL");
+    } else if (status.mode == WiFiManager::Mode::ERASING) {
+        ticker.attach(TICKER_RATE_ERASE, tick);
+        Serial.println("ERASING");
+    } else if (status.mode == WiFiManager::Mode::CONNECTED) {
+        digitalWrite(LED_BUILTIN, HIGH);
+        Serial.println("CONNECTED");
+    } else if (status.mode == WiFiManager::Mode::DISCONNECTED) {
+        digitalWrite(LED_BUILTIN, LOW);
+        Serial.println("DISCONNECTED");
+    }
+}
+```
 
 ## Documentation
-
-#### Password protect the configuration Access Point
-You can and should password protect the configuration access point.  Simply add the password as a second parameter to `autoConnect`.
-A short password seems to have unpredictable results so use one that's around 8 characters or more in length.
-The guidelines are that a wifi password must consist of 8 to 63 ASCII-encoded characters in the range of 32 to 126 (decimal)
-```cpp
-wifiManager.autoConnect("AutoConnectAP", "password")
-```
-
-#### Callbacks
-##### Enter Config mode
-Use this if you need to do something when your device enters configuration mode on failed WiFi connection attempt.
-Before `autoConnect()`
-```cpp
-wifiManager.setAPCallback(configModeCallback);
-```
-`configModeCallback` declaration and example
-```cpp
-void configModeCallback (WiFiManager *myWiFiManager) {
-  Serial.println("Entered config mode");
-  Serial.println(WiFi.softAPIP());
-
-  Serial.println(myWiFiManager->getConfigPortalSSID());
-}
-```
-
-##### Save settings
-This gets called when custom parameters have been set **AND** a connection has been established. Use it to set a flag, so when all the configuration finishes, you can save the extra parameters somewhere.
-
-See [AutoConnectWithFSParameters Example](https://github.com/tzapu/WiFiManager/tree/master/examples/AutoConnectWithFSParameters).
-```cpp
-wifiManager.setSaveConfigCallback(saveConfigCallback);
-```
-`saveConfigCallback` declaration and example
-```cpp
-//flag for saving data
-bool shouldSaveConfig = false;
-
-//callback notifying us of the need to save config
-void saveConfigCallback () {
-  Serial.println("Should save config");
-  shouldSaveConfig = true;
-}
-```
 
 #### Configuration Portal Timeout
 If you need to set a timeout so the ESP doesn't hang waiting to be configured, for instance after a power failure, you can add
@@ -97,24 +83,6 @@ wifiManager.setConfigPortalTimeout(180);
 ```
 which will wait 3 minutes (180 seconds). When the time passes, the autoConnect function will return, no matter the outcome.
 Check for connection and if it's still not established do whatever is needed (on some modules I restart them to retry, on others I enter deep sleep)
-
-#### On Demand Configuration Portal
-If you would rather start the configuration portal on demand rather than automatically on a failed connection attempt, then this is for you.
-
-Instead of calling `autoConnect()` which does all the connecting and failover configuration portal setup for you, you need to use `startConfigPortal()`. __Do not use BOTH.__
-
-Example usage
-```cpp
-void loop() {
-  // is configuration portal requested?
-  if ( digitalRead(TRIGGER_PIN) == LOW ) {
-    WiFiManager wifiManager;
-    wifiManager.startConfigPortal("OnDemandAP");
-    Serial.println("connected...yeey :)");
-  }
-}
-```
-See example for a more complex version. [OnDemandConfigPortal](https://github.com/tzapu/WiFiManager/tree/master/examples/OnDemandConfigPortal)
 
 #### Custom Parameters
 You can use WiFiManager to collect more parameters than just SSID and password.
@@ -140,23 +108,6 @@ You should also take a look at adding custom HTML to your form.
 
 - Save and load custom parameters to file system in json form [AutoConnectWithFSParameters](https://github.com/tzapu/WiFiManager/tree/master/examples/AutoConnectWithFSParameters)
 - *Save and load custom parameters to EEPROM* (not done yet)
-
-#### Custom IP Configuration
-You can set a custom IP for both AP (access point, config mode) and STA (station mode, client mode, normal project state)
-
-##### Custom Access Point IP Configuration
-This will set your captive portal to a specific IP should you need/want such a feature. Add the following snippet before `autoConnect()`
-```cpp
-//set custom ip for portal
-wifiManager.setAPStaticIPConfig(IPAddress(10,0,1,1), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
-```
-
-##### Custom Station (client) Static IP Configuration
-This will make use the specified IP configuration instead of using DHCP in station mode.
-```cpp
-wifiManager.setSTAStaticIPConfig(IPAddress(192,168,0,99), IPAddress(192,168,0,1), IPAddress(255,255,255,0));
-```
-There are a couple of examples in the examples folder that show you how to set a static IP and even how to configure it through the web configuration portal.
 
 #### Custom HTML, CSS, Javascript
 There are various ways in which you can inject custom HTML, CSS or Javascript into the configuration portal.

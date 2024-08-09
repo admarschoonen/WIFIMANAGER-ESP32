@@ -9,5 +9,5 @@
   },
   "frameworks": "arduino",
   "platforms": ["espressif32"],
-  "version": "0.99.11"
+  "version": "0.100.0"
 }
