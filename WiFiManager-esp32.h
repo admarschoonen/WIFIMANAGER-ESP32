@@ -34,17 +34,6 @@ extern "C" {
 #define ESP_getChipId() ((uint32_t)ESP.getEfuseMac())
 #endif
 
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 2
-#endif
-
-#ifndef BUTTON_BUILTIN
-#define BUTTON_BUILTIN 0
-#endif
-
-#define LED_ON_VALUE_DEFAULT HIGH
-#define BUTTON_PRESSED_VALUE_DEFAULT LOW
-
 const char WM_HTTP_HEAD[] PROGMEM =
     "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"viewport\" "
     "content=\"width=device-width, initial-scale=1, "
@@ -155,8 +144,7 @@ class WiFiManager {
     Mode mode;
   };
 
-  void configure(String hostname, void (*statusCb)(Status status),
-                 int buttonPin, bool buttonInvert);
+  void configure(String hostname, void (*statusCb)(Status status));
 
   boolean autoConnect();
   boolean autoConnect(char const *apName, char const *apPassword = NULL);
@@ -212,8 +200,6 @@ class WiFiManager {
   uint64_t getMac();
   String getMacAsString(bool insertColons);
   void appendMacToHostname(bool value);
-  void setLedOnValue(int value);
-  void setButtonPressedValue(int value);
 
  private:
   std::unique_ptr<DNSServer> dnsServer;
@@ -243,10 +229,6 @@ class WiFiManager {
   unsigned long _configPortalTimeout = 0;
   unsigned long _connectTimeout = 0;
   unsigned long _configPortalStart = 0;
-  int _ledOnValue = LED_ON_VALUE_DEFAULT;
-  int _buttonPin = BUTTON_BUILTIN;
-  int _buttonPressedValue = BUTTON_PRESSED_VALUE_DEFAULT;
-  bool _ledInvert = false;
 
   IPAddress _ap_static_ip;
   IPAddress _ap_static_gw;
@@ -297,6 +279,7 @@ class WiFiManager {
 
   boolean connect;
   boolean _debug = true;
+  boolean _preferences_opened = false;
 
   void (*_apcallback)(WiFiManager *) = NULL;
   void (*_savecallback)(void) = NULL;

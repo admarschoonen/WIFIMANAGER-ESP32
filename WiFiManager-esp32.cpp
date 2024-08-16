@@ -16,11 +16,6 @@
 
 #define DEFAULT_TIMEOUT 300
 
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 2
-#endif
-
-int WM_LED_PIN = LED_BUILTIN;
 int n_wifi_networks = 0;
 Preferences preferences;
 
@@ -71,39 +66,21 @@ const char *WiFiManagerParameter::getPlaceholder() { return _placeholder; }
 int WiFiManagerParameter::getValueLength() { return _length; }
 const char *WiFiManagerParameter::getCustomHTML() { return _customHTML; }
 
-void WiFiManager::configure(String hostname, void (*statusCb)(Status status),
-                            int buttonPin, bool buttonInvert) {
+void WiFiManager::configure(String hostname, void (*statusCb)(Status status)) {
   // Open Preferences with my-app namespace. Each application module, library,
   // etc has to use a namespace name to prevent key name collisions. We will
   // open storage in RW-mode (second parameter has to be false). Note: Namespace
   // name is limited to 15 chars.
   preferences.begin("WiFiManager", false);
-  _buttonPin = buttonPin;
-  _buttonPressedValue = buttonInvert ? !BUTTON_PRESSED_VALUE_DEFAULT
-                                     : BUTTON_PRESSED_VALUE_DEFAULT;
+  _preferences_opened = true;
+
   _statusCb = statusCb;
 
   status.mode = CONNECTING;
   if (_statusCb) {
     _statusCb(status);
   }
-  if (WM_LED_PIN >= 0) {
-    pinMode(WM_LED_PIN, OUTPUT);
-    digitalWrite(WM_LED_PIN, !_ledOnValue);
-  }
 
-  if (_buttonPin >= 0) {
-    pinMode(_buttonPin, INPUT);
-  }
-
-  if (_buttonPin >= 0) {
-    // Give user 1 second chance to press button and reset settings
-    DEBUG_WM("Waiting 3 seconds to check if user presses the button");
-    delay(3000);
-    if (digitalRead(_buttonPin) == _buttonPressedValue) {
-      resetSettings();
-    }
-  }
   appendMacToHostname(true);
   setDefaultHostname(hostname);
   readHostname();
@@ -237,16 +214,7 @@ boolean WiFiManager::autoConnect(char const *apName, char const *apPassword) {
   }
 
   preferences.end();
-
-  if (connected) {
-    if (WM_LED_PIN >= 0) {
-      digitalWrite(WM_LED_PIN, _ledOnValue);
-    }
-  } else {
-    if (WM_LED_PIN >= 0) {
-      digitalWrite(WM_LED_PIN, !_ledOnValue);
-    }
-  }
+  _preferences_opened = false;
 
   return connected;
 }
@@ -333,10 +301,6 @@ boolean WiFiManager::startConfigPortal(char const *apName,
         if (_statusCb) {
           _statusCb(status);
         }
-
-        if (WM_LED_PIN >= 0) {
-          digitalWrite(WM_LED_PIN, !_ledOnValue);
-        }
       } else {
         // connected
         WiFi.mode(WIFI_STA);
@@ -344,10 +308,6 @@ boolean WiFiManager::startConfigPortal(char const *apName,
         status.mode = CONNECTED;
         if (_statusCb) {
           _statusCb(status);
-        }
-
-        if (WM_LED_PIN >= 0) {
-          digitalWrite(WM_LED_PIN, _ledOnValue);
         }
 
         // notify that configuration has changed and any optional parameters
@@ -541,10 +501,14 @@ void WiFiManager::resetSettings() {
     _statusCb(status);
   }
   DEBUG_WM(F("settings invalidated"));
-  DEBUG_WM(
-      F("THIS MAY CAUSE AP NOT TO START UP PROPERLY. YOU NEED TO COMMENT IT "
-        "OUT AFTER ERASING THE DATA."));
   WiFi.disconnect(true);
+
+  bool preferences_was_already_opened = _preferences_opened;
+
+  if (not _preferences_opened) {
+    preferences.begin("WiFiManager", false);
+    _preferences_opened = true;
+  }
 
   // Ugly workaround for a bug that prevents proper erasing SSID and password.
   // See
@@ -556,10 +520,11 @@ void WiFiManager::resetSettings() {
   preferences.remove("pass");
   readHostname();
 
-  if (WM_LED_PIN >= 0) {
-    // Delay for 1 second to let user know settings are erased
-    delay(1000);
+  if (not preferences_was_already_opened) {
+    preferences.end();
+    _preferences_opened = false;
   }
+
   status.mode = mode_prev;
   if (_statusCb) {
     _statusCb(status);
@@ -1167,12 +1132,6 @@ void WiFiManager::readNetworkCredentials() {
 void WiFiManager::appendMacToHostname(bool value) {
   _appendMacToHostname = value;
   readHostname();
-}
-
-void WiFiManager::setLedOnValue(int value) { _ledOnValue = value; }
-
-void WiFiManager::setButtonPressedValue(int value) {
-  _buttonPressedValue = value;
 }
 
 template <typename Generic>
