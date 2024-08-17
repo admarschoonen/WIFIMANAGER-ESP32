@@ -13,38 +13,53 @@ This library uses the WebServer and DNSServer libraries.
 ![ESP32 WiFi Captive Portal Homepage](Screenshot_20190222-113249.png)
 
 
-### Usage
-- Include in your sketch
+## Usage
+Include in your sketch:
 ```cpp
 #include <WiFiManager-ESP32.h>         
 
 ```
 
-- Create a global WiFiManager object
+Create a global WiFiManager object:
 ```cpp
 WiFiManager wifiManager;
 ```
 
-- In the setup function add
+In the setup function add:
 ```cpp
-wifiManager.configure("esp32", nullptr, BUTTON_BUILTIN, false);
-// first parameter is name of access point, second is the callback function, 
-// third is the input pin that can be used to reset wifi settings, fourth is whether this
-// input should be inverted or not
+wifiManager.configure("esp32", nullptr);
+// first parameter is name of access point, second is the callback function
 ```
 
 After you write your sketch and start the ESP, it will try to connect to WiFi. If it fails it starts in Access Point mode.
 While in AP mode, connect to it. Your browser should automatically open and load the configuration page; if not go to 192.168.4.1. Configure wifi, save and it should reboot and connect.
 
+If you're application needs to reset the WiFi settings (for example when the user presses a button), you can do this before calling `configure()`:
+
+```cpp
+pinMode(BUTTON_BUILTIN, INPUT);
+
+// Give user 3 second chance to press button and reset settings
+Serial.println("Waiting 3 seconds to check if user presses the button");
+delay(3000);
+if (not digitalRead(BUTTON_BUILTIN)) {
+    wifiManager.resetSettings();
+}
+```
+
 If you're application needs to be notified of the configuration process, you can pass a callback function instead of the `nullptr`:
 
 ```cpp
-wifiManager.configure("esp32", nullptr, BUTTON_BUILTIN, false);
+wifiManager.configure("esp32", wifiManagerCb);
 ```
 
 The following example function will blink an led at different rates for different parts of the configuration process.
 
-```
+```cpp
+#define TICKER_RATE_CONNECTING 0.6
+#define TICKER_RATE_CONFIG 0.2
+#define TICKER_RATE_ERASE 0.05
+
 Ticker ticker;
 
 void wifiManagerCb(WiFiManager::Status status) {
